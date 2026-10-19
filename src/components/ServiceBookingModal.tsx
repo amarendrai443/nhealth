@@ -57,8 +57,8 @@ export const ServiceBookingModal: React.FC<ServiceBookingModalProps> = ({
     address: '',
     preferredDate: getTomorrowDate(),
     preferredTimeSlot: TIME_SLOTS[0],
-    agreeTerms: true,
-    agreePrivacy: true,
+    agreeTerms: false,
+    agreePrivacy: false,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -492,6 +492,7 @@ export const ServiceBookingModal: React.FC<ServiceBookingModalProps> = ({
             <label className="flex items-start gap-2.5 text-xs text-slate-700 cursor-pointer select-none">
               <input
                 type="checkbox"
+                required
                 checked={formData.agreeTerms}
                 onChange={(e) => {
                   setFormData({ ...formData, agreeTerms: e.target.checked });
@@ -500,12 +501,12 @@ export const ServiceBookingModal: React.FC<ServiceBookingModalProps> = ({
                 className="mt-0.5 w-4 h-4 rounded text-[#008080] focus:ring-[#008080] cursor-pointer"
               />
               <span>
-                I agree to the <span className="font-bold text-[#002b49] underline">Terms &amp; Conditions</span> for doorstep clinical sample collection and home healthcare services.
+                I agree to the <span className="font-bold text-[#002b49] underline">Terms &amp; Conditions</span> for doorstep clinical sample collection and home healthcare services <span className="text-red-500 font-bold">(Mandatory)</span>.
               </span>
             </label>
             {errors.agreeTerms && <p className="text-[11px] text-red-500 pl-6">{errors.agreeTerms}</p>}
 
-            {/* Privacy Policy Checkbox (Mandate as requested) */}
+            {/* Privacy Policy Checkbox (Mandatory) */}
             <label className="flex items-start gap-2.5 text-xs text-slate-700 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -528,10 +529,15 @@ export const ServiceBookingModal: React.FC<ServiceBookingModalProps> = ({
           <div className="pt-3">
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-[#008080] to-[#006666] hover:from-[#006666] hover:to-[#004d4d] text-white font-extrabold py-3.5 px-6 rounded-xl text-sm shadow-md hover:shadow-lg transition-all active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer"
+              disabled={!formData.agreeTerms || !formData.agreePrivacy}
+              className={`w-full font-extrabold py-3.5 px-6 rounded-xl text-sm transition-all flex items-center justify-center gap-2 ${
+                !formData.agreeTerms || !formData.agreePrivacy
+                  ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-60 shadow-none'
+                  : 'bg-gradient-to-r from-[#008080] to-[#006666] hover:from-[#006666] hover:to-[#004d4d] text-white shadow-md hover:shadow-lg active:scale-[0.99] cursor-pointer ring-2 ring-teal-500/30'
+              }`}
             >
-              <CheckCircle2 className="w-4 h-4 text-teal-200" />
-              <span>Book Now / Submit Request</span>
+              <CheckCircle2 className={`w-4 h-4 ${formData.agreeTerms && formData.agreePrivacy ? 'text-teal-200' : 'text-slate-400'}`} />
+              <span>Submit Request</span>
             </button>
             <p className="text-center text-[11px] text-slate-400 mt-2">
               Our clinical coordinator will instantly acknowledge your booking via WhatsApp &amp; SMS.

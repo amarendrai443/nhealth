@@ -115,7 +115,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     gender: 'Male',
     city: 'Hyderabad',
     pincode: '',
-    agreeTerms: true,
+    agreeTerms: false,
   });
   const [signupOtpSent, setSignupOtpSent] = useState(false);
   const [signupOtp, setSignupOtp] = useState('');
@@ -850,7 +850,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       return;
     }
     if (!signupForm.agreeTerms) {
-      setErrorMsg('Please agree to the Nhealth Terms of Service.');
+      setErrorMsg('Please agree to the mandatory Terms & Conditions and Privacy Policy.');
       return;
     }
 
@@ -1737,30 +1737,35 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       </div>
                     )}
 
-                    <div className="flex items-start gap-2 pt-1">
+                    <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
                       <input
                         type="checkbox"
                         id="terms"
+                        required
                         checked={signupForm.agreeTerms}
                         onChange={(e) => setSignupForm({ ...signupForm, agreeTerms: e.target.checked })}
-                        className="mt-1 rounded text-[#008080] focus:ring-[#008080]"
+                        className="mt-0.5 w-4 h-4 rounded text-[#008080] focus:ring-[#008080] cursor-pointer"
                       />
-                      <label htmlFor="terms" className="text-[11px] text-slate-600 leading-tight">
-                        I agree to Nhealth's Patient Care Terms of Service &amp; Consent for single identity profile management across verified medical services.
+                      <label htmlFor="terms" className="text-xs text-slate-700 leading-snug cursor-pointer font-medium">
+                        I agree to the <span className="font-bold text-[#002b49]">Terms &amp; Conditions</span> and <span className="font-bold text-[#002b49]">Privacy Policy</span> of Nhealth Unified Healthcare Technologies Private Limited. <span className="text-red-500 font-bold">(Mandatory)</span>
                       </label>
                     </div>
 
                     <button
                       type="submit"
-                      disabled={isLoading}
-                      className="w-full py-3 rounded-xl bg-[#002b49] hover:bg-[#001d31] text-white font-bold text-sm shadow-md transition-all active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
+                      disabled={isLoading || !signupForm.agreeTerms}
+                      className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                        !signupForm.agreeTerms || isLoading
+                          ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-60 shadow-none'
+                          : 'bg-gradient-to-r from-[#002b49] via-[#003859] to-[#002b49] hover:from-[#00172b] hover:to-[#00172b] text-white shadow-md hover:shadow-lg ring-2 ring-[#008080]/30 active:scale-[0.99] cursor-pointer'
+                      }`}
                     >
                       <span>
                         {isLoading
                           ? 'Registering Single Identity...'
                           : signupOtpSent
-                          ? 'Verify OTP & Complete Unified Sign-Up'
-                          : 'Register with Single Identity'}
+                          ? 'Verify OTP & Submit Request'
+                          : 'Submit Request / Register Single Identity'}
                       </span>
                       <ArrowRight className="w-4 h-4" />
                     </button>

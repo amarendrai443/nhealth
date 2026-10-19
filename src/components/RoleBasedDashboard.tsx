@@ -58,14 +58,14 @@ export const RoleBasedDashboard: React.FC<RoleBasedDashboardProps> = ({
   onSwitchRole,
   allPartners = INITIAL_PARTNERS,
 }) => {
-  // Normalize current role
+  // Normalize current role - Dynamically directs approved partners to their specific service portal
   const determineInitialRole = (): DashboardRole => {
     const rawRole = currentUser.role || currentUser.accountType || '';
     const lower = rawRole.toLowerCase();
     if (lower.includes('doctor')) return 'Doctor';
     if (lower.includes('diagnostic') || lower.includes('lab') || lower.includes('blood')) return 'Diagnostics';
     if (lower.includes('pharmacy')) return 'Pharmacy';
-    if (lower.includes('ambulance') || lower.includes('rider')) return 'Ambulance';
+    if (lower.includes('rider') || lower.includes('transit') || lower.includes('ambulance')) return 'Ambulance';
     if (lower.includes('caregiver') || lower.includes('care assist') || lower.includes('elder') || lower.includes('assist')) return 'Caregiver';
     if (lower.includes('hospital')) return 'Hospital';
     return 'Patient';
@@ -84,8 +84,23 @@ export const RoleBasedDashboard: React.FC<RoleBasedDashboardProps> = ({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Generate linked accounts for this phone/email under Single Identity
+  // Generate linked accounts for this phone/email under Single Identity, dynamically injecting approved partner
   const linkedAccounts: LinkedAccount[] = [
+    ...(currentUser.accountType === 'Partner' || currentUser.role !== 'Patient'
+      ? [
+          {
+            id: currentUser.id || 'PARTNER-LIVE-001',
+            name: currentUser.name || 'Empaneled Partner',
+            role: determineInitialRole(),
+            roleTitle: `${currentUser.role || 'Partner'} Portal`,
+            entityName: currentUser.entityName || currentUser.name || 'Nhealth Empaneled Unit',
+            phone: currentUser.phone || '9393934621',
+            email: currentUser.email || 'partner@nhealth.in',
+            status: 'Live' as const,
+            badge: 'Verified Partner',
+          },
+        ]
+      : []),
     {
       id: currentUser.id || 'USR-88210',
       name: currentUser.name || 'Valued User',
