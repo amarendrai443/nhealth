@@ -114,17 +114,21 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
   const requestScreenWakeLock = async () => {
     if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
       try {
-        if (!wakeLockSentinelRef.current || wakeLockSentinelRef.current.released) {
-          const sentinel = await (navigator as any).wakeLock.request('screen');
-          wakeLockSentinelRef.current = sentinel;
+        if (wakeLockSentinelRef.current && !wakeLockSentinelRef.current.released) {
           setIsWakeLockActive(true);
-          sentinel.addEventListener('release', () => {
-            setIsWakeLockActive(false);
-            wakeLockSentinelRef.current = null;
-          });
+          return;
         }
+        wakeLockSentinelRef.current = null;
+        const sentinel = await (navigator as any).wakeLock.request('screen');
+        wakeLockSentinelRef.current = sentinel;
+        setIsWakeLockActive(true);
+        sentinel.addEventListener('release', () => {
+          setIsWakeLockActive(false);
+          wakeLockSentinelRef.current = null;
+        });
       } catch (err) {
         console.warn('Screen Wake Lock request was not granted or error:', err);
+        setIsWakeLockActive(false);
       }
     }
   };
@@ -145,22 +149,22 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
   };
 
   // Screen Wake Lock Lifecycle:
-  // Activate wake lock when Vital Lens opens, keep awake while scan service is active, release on unmount / close
+  // Activate wake lock when Vital Lens opens or enters Step 4 (camera scanning), keep awake while scan is active, release on unmount / finish
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && currentStep === 4) {
       requestScreenWakeLock();
-    } else {
+    } else if (!isOpen || currentStep === 5) {
       releaseScreenWakeLock();
     }
     return () => {
       releaseScreenWakeLock();
     };
-  }, [isOpen]);
+  }, [isOpen, currentStep]);
 
-  // Handle visibility changes (document.visibilityState === 'visible') to re-acquire the lock if minimized/restored
+  // Handle visibility changes (document.visibilityState === 'visible') to re-acquire the lock if minimized/restored during scan
   useEffect(() => {
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && isOpen && currentStep < 5) {
+      if (document.visibilityState === 'visible' && isOpen && currentStep === 4) {
         await requestScreenWakeLock();
       }
     };
@@ -260,6 +264,8 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
   // Camera Management
   const startCamera = async () => {
     setCameraError(null);
+    // Explicitly re-initialize screen wake lock on camera start/retry
+    await requestScreenWakeLock();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -591,6 +597,30 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
     } finally {
       setIsGeneratingPdf(false);
     }
+  };
+
+  // Re-initialization handler for 'Scan Again' button on Step 5
+  const handleScanAgain = async () => {
+    stopCamera();
+    if (scanTimerRef.current) clearInterval(scanTimerRef.current);
+    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+
+    // Reset scan metrics & states
+    setScanResults(null);
+    setScanSecondsElapsed(0);
+    setLiveBpm(72);
+    setCameraError(null);
+    setPdfDownloadSuccess(false);
+    setIsGeneratingPdf(false);
+    wavePointsRef.current = [];
+    processorRef.current.reset();
+
+    // Re-initialize and request Screen Wake Lock explicitly for the retry scan
+    await requestScreenWakeLock();
+
+    // Directly move to Step 4 and start camera
+    setCurrentStep(4);
+    await startCamera();
   };
 
   // Calculate scan progress %
@@ -1090,22 +1120,25 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
         {/* STEP 4: Live Camera Scan View (MediaPipe Face Mesh Integration) */}
         {currentStep === 4 && (
           <div className="p-4 sm:p-6 flex-1 flex flex-col items-center justify-between text-center overflow-y-auto">
-            {/* Prominent Nhealth Logo directly above camera viewport location */}
-            <div className="mb-2 flex items-center justify-center gap-2 bg-[#00223f] px-4 py-1.5 rounded-full border border-purple-500/30 shadow-sm">
-              <img
-                src={NHEALTH_LOGO_URL}
-                alt="Nhealth Logo"
-                className="h-6 w-auto object-contain"
-                onError={(e) => {
-                  const target = e.currentTarget;
-                  if (target.src !== window.location.origin + NHEALTH_LOGO_FALLBACK) {
-                    target.src = NHEALTH_LOGO_FALLBACK;
-                  }
-                }}
-              />
-              <span className="text-xs font-bold text-purple-300">
-                Nhealth Vital Lens™ Biometric Viewport
-              </span>
+            {/* Live VPPG Capillary Pulse Wave Monitor (Replaces removed redundant section above camera to keep camera screen 100% unobstructed) */}
+            <div className="w-full max-w-[420px] bg-[#00172b]/95 border border-purple-500/40 rounded-2xl p-2.5 mb-2 shadow-lg shrink-0">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 mb-1.5 px-1">
+                <span className="flex items-center gap-1.5 text-purple-300">
+                  <Activity className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
+                  <span>Live VPPG Capillary Pulse Wave</span>
+                </span>
+                <span className="text-teal-400 font-mono text-[10px] bg-teal-950/70 px-2 py-0.5 rounded-full border border-teal-500/30">
+                  70 FPS Optical Filter
+                </span>
+              </div>
+              <div className="bg-black/60 rounded-xl p-1.5 border border-purple-500/20">
+                <canvas
+                  ref={waveCanvasRef}
+                  width={420}
+                  height={46}
+                  className="w-full h-11 block rounded-lg"
+                />
+              </div>
             </div>
 
             {cameraError ? (
@@ -1132,7 +1165,7 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
                   className="hidden"
                 />
 
-                {/* Main Biometric Tracking Canvas */}
+                {/* Main Biometric Tracking Canvas - 100% Unobstructed */}
                 <canvas
                   ref={canvasRef}
                   width={480}
@@ -1161,23 +1194,6 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
                       <span className="text-[10px] text-slate-400 font-mono">({progressPercent}%)</span>
                     </div>
                   </div>
-                </div>
-
-                {/* Bottom Overlay: Live vPPG Pulse Waveform Canvas */}
-                <div className="absolute bottom-2 inset-x-3 bg-black/70 backdrop-blur-md border border-white/10 rounded-2xl p-2 z-10">
-                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mb-1">
-                    <span className="flex items-center gap-1 text-purple-300">
-                      <Activity className="w-3 h-3 text-purple-400" />
-                      <span>Live vPPG Capillary Pulse Wave</span>
-                    </span>
-                    <span className="text-teal-400 font-mono">70 FPS Optical Filter</span>
-                  </div>
-                  <canvas
-                    ref={waveCanvasRef}
-                    width={380}
-                    height={46}
-                    className="w-full h-11 block rounded-lg"
-                  />
                 </div>
               </div>
             )}
@@ -1536,10 +1552,7 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <button
                   type="button"
-                  onClick={() => {
-                    setCurrentStep(3);
-                    startCamera();
-                  }}
+                  onClick={handleScanAgain}
                   className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold transition-all cursor-pointer"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
