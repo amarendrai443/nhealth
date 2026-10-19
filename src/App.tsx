@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Activity,
   Stethoscope,
@@ -603,6 +603,52 @@ export default function App() {
   const [showPwaInstallModal, setShowPwaInstallModal] = useState(false);
   const [isAppInstalled, setIsAppInstalled] = useState(false);
 
+  // Ref for touch-swipable auto-scrolling services section on mobile/tablet
+  const mobileMarqueeRef = useRef<HTMLDivElement | null>(null);
+
+  // Smooth auto-scroll + touch swipe on mobile and tablet without touching desktop
+  useEffect(() => {
+    const el = mobileMarqueeRef.current;
+    if (!el) return;
+
+    let animId: number;
+    let isTouched = false;
+    let resumeTimeout: any = null;
+
+    const onTouchStart = () => {
+      isTouched = true;
+      if (resumeTimeout) clearTimeout(resumeTimeout);
+    };
+
+    const onTouchEnd = () => {
+      resumeTimeout = setTimeout(() => {
+        isTouched = false;
+      }, 1200);
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    const scrollLoop = () => {
+      if (window.innerWidth < 1024 && !isTouched && el) {
+        el.scrollLeft += 0.8;
+        if (el.scrollLeft >= el.scrollWidth / 2) {
+          el.scrollLeft = 0;
+        }
+      }
+      animId = requestAnimationFrame(scrollLoop);
+    };
+
+    animId = requestAnimationFrame(scrollLoop);
+
+    return () => {
+      cancelAnimationFrame(animId);
+      if (resumeTimeout) clearTimeout(resumeTimeout);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchend', onTouchEnd);
+    };
+  }, []);
+
   // Splash Screen Lifecycle on every page load/reload (extended by 2 seconds)
   useEffect(() => {
     // 1. Solid blank white screen for 350ms
@@ -1027,8 +1073,8 @@ export default function App() {
   return (
     <div className="min-h-screen bg-white text-slate-800 flex flex-col font-sans selection:bg-[#008080]/15 selection:text-[#002b49] w-full max-w-full overflow-x-hidden">
       {/* Top Bar Header (Frozen / Fixed in place) */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white/98 border-b border-slate-200/80 shadow-xs backdrop-blur-md w-full overflow-x-clip">
-        <div className="w-full lg:max-w-none px-3 sm:px-5 lg:px-6 xl:px-8 2xl:px-12 h-20 flex items-center justify-between min-w-0">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/98 border-b border-slate-200/80 shadow-xs backdrop-blur-md w-full">
+        <div className="w-full lg:max-w-none px-2.5 sm:px-5 lg:px-6 xl:px-8 2xl:px-12 h-20 flex items-center justify-between min-w-0">
           {/* Zone 1: Brand Wordmark & Official Logo */}
           <a
             href="#home"
@@ -1038,7 +1084,7 @@ export default function App() {
                 navigateTo('home', '/');
               }
             }}
-            className="flex items-center gap-1.5 sm:gap-2 group transition-opacity hover:opacity-90 whitespace-nowrap shrink-0 pr-2 xl:pr-4"
+            className="flex items-center gap-1.5 sm:gap-2 group transition-opacity hover:opacity-90 whitespace-nowrap shrink-0 pr-1 sm:pr-2 xl:pr-4"
           >
             <img
               src={NHEALTH_LOGO_URL}
@@ -1053,7 +1099,7 @@ export default function App() {
             />
             <span
               style={{ fontFamily: "'Poppins', 'Montserrat', sans-serif", fontWeight: 600 }}
-              className="text-lg sm:text-2xl lg:text-3xl tracking-tight text-[#002b49]"
+              className="text-base sm:text-2xl lg:text-3xl tracking-tight text-[#002b49]"
             >
               Nhealth™
             </span>
@@ -1225,12 +1271,12 @@ export default function App() {
           <div className="hidden lg:block h-6 w-px bg-slate-200/90 shrink-0 mx-2 xl:mx-3" />
 
           {/* Zone 3: Search Icon, Partner Button, Login Button - Strictly Isolated with Zero Overlap */}
-          <div className="flex items-center gap-2 xl:gap-3 shrink-0 ml-auto lg:ml-0 min-w-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 xl:gap-3 shrink-0 ml-auto lg:ml-0">
             {/* Search Icon */}
             <button
               type="button"
               onClick={() => setSearchModalOpen(true)}
-              className="p-2 text-slate-600 hover:text-[#008080] hover:bg-slate-100 rounded-xl transition-colors cursor-pointer shrink-0 border border-slate-200/80"
+              className="p-1.5 sm:p-2 text-slate-600 hover:text-[#008080] hover:bg-slate-100 rounded-xl transition-colors cursor-pointer shrink-0 border border-slate-200/80"
               title="Search Services"
               aria-label="Search Services"
             >
@@ -1249,15 +1295,15 @@ export default function App() {
 
             {/* Login / Auth State Button */}
             {isLoggedIn && currentUser ? (
-              <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <button
                   type="button"
                   onClick={() => navigateTo('dashboard', '/dashboard')}
-                  className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold px-2.5 sm:px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-[#008080] border border-teal-200 transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
+                  className="inline-flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-bold px-2 sm:px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-[#008080] border border-teal-200 transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
                   title="Open Your Role-Based Healthcare Dashboard"
                 >
                   <Activity className="w-3.5 h-3.5 text-[#008080]" />
-                  <span className="max-w-[85px] xl:max-w-[130px] truncate">{currentUser.name || 'Dashboard'}</span>
+                  <span className="max-w-[70px] sm:max-w-[85px] xl:max-w-[130px] truncate">{currentUser.name || 'Dashboard'}</span>
                   <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-teal-200/60 text-teal-900 hidden lg:inline">
                     {currentUser.role || currentUser.accountType || 'Portal'}
                   </span>
@@ -1275,18 +1321,18 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => navigateTo('auth', '/auth')}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 xl:px-3.5 py-1.5 sm:py-2 rounded-xl bg-[#002b49] hover:bg-[#003d66] text-white transition-colors whitespace-nowrap cursor-pointer shrink-0 shadow-xs"
+                className="inline-flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-semibold px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-[#002b49] hover:bg-[#003d66] text-white transition-colors whitespace-nowrap cursor-pointer shrink-0 shadow-xs"
               >
                 <User className="w-3.5 h-3.5 text-white" />
                 <span>Login/Signup</span>
               </button>
             )}
 
-            {/* Mobile Menu Toggle Button */}
+            {/* Mobile Menu Toggle Button - 100% visible, fully touchable */}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-1.5 sm:p-2 text-slate-700 hover:text-[#008080] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
+              className="lg:hidden w-10 h-10 flex items-center justify-center text-slate-700 hover:text-[#008080] hover:bg-slate-100 active:bg-slate-200 rounded-xl transition-colors cursor-pointer shrink-0 border border-slate-200/80 sm:border-transparent z-10"
               aria-label="Toggle Navigation Menu"
             >
               {mobileMenuOpen ? <X className="w-5 h-5 text-slate-800" /> : <Menu className="w-5 h-5 text-slate-800" />}
@@ -1880,16 +1926,19 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Marquee Wrapper with soft edge gradient masks */}
-              <div className="relative w-full overflow-hidden py-2 group">
+              {/* Marquee Wrapper with soft edge gradient masks - Auto-scrolls and fully touch-swipable on mobile/tablet */}
+              <div
+                ref={mobileMarqueeRef}
+                className="relative w-full py-2 group overflow-x-auto lg:overflow-hidden scrollbar-none cursor-grab active:cursor-grabbing select-none [-webkit-overflow-scrolling:touch]"
+              >
                 {/* Left Gradient Fade */}
-                <div className="pointer-events-none absolute inset-y-0 left-0 w-12 sm:w-20 bg-gradient-to-r from-[#f0f4f8] to-transparent z-10" />
+                <div className="pointer-events-none absolute inset-y-0 left-0 w-8 sm:w-20 bg-gradient-to-r from-[#f0f4f8] to-transparent z-10" />
 
                 {/* Right Gradient Fade */}
-                <div className="pointer-events-none absolute inset-y-0 right-0 w-12 sm:w-20 bg-gradient-to-l from-[#e2e8f0] to-transparent z-10" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 w-8 sm:w-20 bg-gradient-to-l from-[#e2e8f0] to-transparent z-10" />
 
-                {/* Infinite Moving Track */}
-                <div className="animate-marquee-track gap-5">
+                {/* Infinite Moving Track on Desktop, Touch-Swipable on Mobile/Tablet */}
+                <div className="flex max-lg:w-max lg:animate-marquee-track gap-5">
                   {marqueeItems.map((item, idx) => {
                     const IconComponent = item.icon;
                     return (
