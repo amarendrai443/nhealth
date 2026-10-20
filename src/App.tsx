@@ -37,7 +37,8 @@ import {
   Compass,
   Target,
   Coins,
-  Cpu
+  Cpu,
+  Mic,
 } from 'lucide-react';
 
 import heroImg from './assets/images/nhealth_hero_healthcare_1791632199780.jpg';
@@ -60,6 +61,8 @@ import { AdminDashboardPage } from './components/AdminDashboardPage';
 import { CorporateEnquiriesPage } from './components/CorporateEnquiriesPage';
 import { TeamsPage } from './components/TeamsPage';
 import { RoleBasedDashboard } from './components/RoleBasedDashboard';
+import { VoiceAssistantModal } from './components/VoiceAssistantModal';
+import { QuickLookFAB } from './components/QuickLookFAB';
 import {
   PartnerApplication,
   PartnerStatus,
@@ -563,6 +566,7 @@ export default function App() {
   const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
   const [myBookingsModalOpen, setMyBookingsModalOpen] = useState(false);
   const [vitalLensOpen, setVitalLensOpen] = useState(false);
+  const [voiceAssistantOpen, setVoiceAssistantOpen] = useState(false);
   const [customPrefillSymptoms, setCustomPrefillSymptoms] = useState('');
 
   // Search, Navigation & Auth States
@@ -603,37 +607,69 @@ export default function App() {
   const [showPwaInstallModal, setShowPwaInstallModal] = useState(false);
   const [isAppInstalled, setIsAppInstalled] = useState(false);
 
-  // Ref for touch-swipable auto-scrolling services section on mobile/tablet
-  const mobileMarqueeRef = useRef<HTMLDivElement | null>(null);
+  // Continuous horizontal auto-scroll & interactive drag controls for services section (Desktop & Mobile)
+  const servicesMarqueeRef = useRef<HTMLDivElement | null>(null);
+  const isMarqueeDragging = useRef(false);
+  const marqueeStartX = useRef(0);
+  const marqueeStartScrollLeft = useRef(0);
+  const marqueeHasDragged = useRef(false);
+  const isMarqueeHovered = useRef(false);
+  const isMarqueeTouched = useRef(false);
+  const [isMarqueeGrabbing, setIsMarqueeGrabbing] = useState(false);
 
-  // Smooth auto-scroll + touch swipe on mobile and tablet without touching desktop
   useEffect(() => {
-    const el = mobileMarqueeRef.current;
+    const el = servicesMarqueeRef.current;
     if (!el) return;
 
     let animId: number;
-    let isTouched = false;
-    let resumeTimeout: any = null;
+    let resumeTouchTimeout: any = null;
+
+    // Center initial position to middle set for seamless 2-way infinite scroll
+    const initScroll = () => {
+      const setWidth = el.scrollWidth / 3;
+      if (setWidth > 0 && el.scrollLeft === 0) {
+        el.scrollLeft = setWidth;
+      }
+    };
+    initScroll();
+    const initTimer = setTimeout(initScroll, 350);
+
+    const onMouseEnter = () => {
+      isMarqueeHovered.current = true;
+    };
+
+    const onMouseLeave = () => {
+      isMarqueeHovered.current = false;
+    };
 
     const onTouchStart = () => {
-      isTouched = true;
-      if (resumeTimeout) clearTimeout(resumeTimeout);
+      isMarqueeTouched.current = true;
+      if (resumeTouchTimeout) clearTimeout(resumeTouchTimeout);
     };
 
     const onTouchEnd = () => {
-      resumeTimeout = setTimeout(() => {
-        isTouched = false;
-      }, 1200);
+      resumeTouchTimeout = setTimeout(() => {
+        isMarqueeTouched.current = false;
+      }, 1000);
     };
 
+    el.addEventListener('mouseenter', onMouseEnter);
+    el.addEventListener('mouseleave', onMouseLeave);
     el.addEventListener('touchstart', onTouchStart, { passive: true });
     el.addEventListener('touchend', onTouchEnd, { passive: true });
 
+    // Smooth continuous horizontal auto-scroll loop
     const scrollLoop = () => {
-      if (window.innerWidth < 1024 && !isTouched && el) {
-        el.scrollLeft += 0.8;
-        if (el.scrollLeft >= el.scrollWidth / 2) {
-          el.scrollLeft = 0;
+      if (el && !isMarqueeHovered.current && !isMarqueeDragging.current && !isMarqueeTouched.current) {
+        el.scrollLeft += 0.85; // Smooth continuous horizontal scroll
+
+        const setW = el.scrollWidth / 3;
+        if (setW > 0) {
+          if (el.scrollLeft >= setW * 2) {
+            el.scrollLeft -= setW;
+          } else if (el.scrollLeft < setW) {
+            el.scrollLeft += setW;
+          }
         }
       }
       animId = requestAnimationFrame(scrollLoop);
@@ -643,11 +679,71 @@ export default function App() {
 
     return () => {
       cancelAnimationFrame(animId);
-      if (resumeTimeout) clearTimeout(resumeTimeout);
+      clearTimeout(initTimer);
+      if (resumeTouchTimeout) clearTimeout(resumeTouchTimeout);
+      el.removeEventListener('mouseenter', onMouseEnter);
+      el.removeEventListener('mouseleave', onMouseLeave);
       el.removeEventListener('touchstart', onTouchStart);
       el.removeEventListener('touchend', onTouchEnd);
     };
   }, []);
+
+  // Global mousemove & mouseup listeners for seamless drag physics across viewport
+  useEffect(() => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (!isMarqueeDragging.current) return;
+      const el = servicesMarqueeRef.current;
+      if (!el) return;
+
+      const delta = e.clientX - marqueeStartX.current;
+      if (Math.abs(delta) > 5) {
+        marqueeHasDragged.current = true;
+      }
+      el.scrollLeft = marqueeStartScrollLeft.current - delta;
+
+      // Wrap check while dragging
+      const setW = el.scrollWidth / 3;
+      if (setW > 0) {
+        if (el.scrollLeft >= setW * 2) {
+          el.scrollLeft -= setW;
+          marqueeStartScrollLeft.current -= setW;
+        } else if (el.scrollLeft < setW) {
+          el.scrollLeft += setW;
+          marqueeStartScrollLeft.current += setW;
+        }
+      }
+    };
+
+    const handleGlobalMouseUp = () => {
+      if (isMarqueeDragging.current) {
+        isMarqueeDragging.current = false;
+        setIsMarqueeGrabbing(false);
+        setTimeout(() => {
+          marqueeHasDragged.current = false;
+        }, 80);
+      }
+    };
+
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, []);
+
+  const handleMarqueeMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return; // Only primary mouse button
+    const el = servicesMarqueeRef.current;
+    if (!el) return;
+
+    isMarqueeDragging.current = true;
+    marqueeHasDragged.current = false;
+    marqueeStartX.current = e.clientX;
+    marqueeStartScrollLeft.current = el.scrollLeft;
+    setIsMarqueeGrabbing(true);
+  };
 
   // Splash Screen Lifecycle on every page load/reload (extended by 2 seconds)
   useEffect(() => {
@@ -1067,8 +1163,8 @@ export default function App() {
     );
   }
 
-  // Duplicate items array for seamless infinite marquee loop
-  const marqueeItems = [...HERO_MARQUEE_SERVICES, ...HERO_MARQUEE_SERVICES];
+  // Triplicate items array for bidirectional seamless infinite marquee loop & drag wrapping
+  const marqueeItems = [...HERO_MARQUEE_SERVICES, ...HERO_MARQUEE_SERVICES, ...HERO_MARQUEE_SERVICES];
 
   return (
     <div className="min-h-screen bg-white text-slate-800 flex flex-col font-sans selection:bg-[#008080]/15 selection:text-[#002b49] w-full max-w-full overflow-x-hidden">
@@ -1922,14 +2018,21 @@ export default function App() {
                   <span>Comprehensive On-Demand Healthcare Services</span>
                 </div>
                 <div className="text-xs font-medium text-slate-500">
-                  Hover to pause · Click any service to schedule directly
+                  Hover to pause · Drag to explore · Click to schedule
                 </div>
               </div>
 
-              {/* Marquee Wrapper with soft edge gradient masks - Auto-scrolls and fully touch-swipable on mobile/tablet */}
+              {/* Marquee Wrapper with soft edge gradient masks - Auto-scrolls on Desktop & Mobile with Pause-on-hover & Click-Drag */}
               <div
-                ref={mobileMarqueeRef}
-                className="relative w-full py-2 group overflow-x-auto lg:overflow-hidden scrollbar-none cursor-grab active:cursor-grabbing select-none [-webkit-overflow-scrolling:touch]"
+                ref={servicesMarqueeRef}
+                onMouseDown={handleMarqueeMouseDown}
+                className={`relative w-full py-2 group overflow-x-auto scrollbar-none select-none [-webkit-overflow-scrolling:touch] ${
+                  isMarqueeGrabbing ? 'cursor-grabbing' : 'cursor-grab'
+                }`}
+                style={{
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none',
+                }}
               >
                 {/* Left Gradient Fade */}
                 <div className="pointer-events-none absolute inset-y-0 left-0 w-8 sm:w-20 bg-gradient-to-r from-[#f0f4f8] to-transparent z-10" />
@@ -1937,24 +2040,29 @@ export default function App() {
                 {/* Right Gradient Fade */}
                 <div className="pointer-events-none absolute inset-y-0 right-0 w-8 sm:w-20 bg-gradient-to-l from-[#e2e8f0] to-transparent z-10" />
 
-                {/* Infinite Moving Track on Desktop, Touch-Swipable on Mobile/Tablet */}
-                <div className="flex max-lg:w-max lg:animate-marquee-track gap-5">
+                {/* Unified Continuous Moving Track on Desktop & Mobile */}
+                <div className="w-max flex gap-5">
                   {marqueeItems.map((item, idx) => {
                     const IconComponent = item.icon;
                     return (
                       <div
                         key={`${item.id}-${idx}`}
-                        onClick={() => openBookingFor(item.name)}
-                        className="w-64 sm:w-72 shrink-0 bg-white hover:bg-slate-50/70 rounded-2xl border border-slate-200 shadow-xs hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer flex flex-col p-3.5 text-left group/card"
+                        onClick={() => {
+                          if (!marqueeHasDragged.current) {
+                            openBookingFor(item.name);
+                          }
+                        }}
+                        className="w-64 sm:w-72 shrink-0 bg-white hover:bg-slate-50/70 rounded-2xl border border-slate-200 shadow-xs hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer flex flex-col p-3.5 text-left group/card select-none"
                       >
                         {/* Service Image Slot with Fallback Container */}
-                        <div className="relative w-full h-36 sm:h-40 rounded-xl overflow-hidden bg-slate-900/5 border border-slate-200/90 mb-3 flex items-center justify-center">
+                        <div className="relative w-full h-36 sm:h-40 rounded-xl overflow-hidden bg-slate-900/5 border border-slate-200/90 mb-3 flex items-center justify-center select-none pointer-events-none">
                           <img
                             src={item.directUrl}
                             alt={item.name}
                             loading="lazy"
                             decoding="async"
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-105"
+                            draggable={false}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-105 select-none pointer-events-none"
                             referrerPolicy="no-referrer"
                             onError={(e) => {
                               // If ImgBB direct URL encounters network or CORS issues, fall back to local saved file
@@ -2803,6 +2911,33 @@ export default function App() {
         defaultUserData={{
           name: currentUser?.name,
           phone: currentUser?.phone,
+        }}
+      />
+
+      {/* Nhealth AI Voice Assistant Modal */}
+      <VoiceAssistantModal
+        isOpen={voiceAssistantOpen}
+        onClose={() => setVoiceAssistantOpen(false)}
+        onNavigateToSection={(sectionId) => {
+          if (currentRoute !== 'home') {
+            navigateTo('home', '/');
+            setTimeout(() => {
+              const el = document.getElementById(sectionId);
+              el?.scrollIntoView({ behavior: 'smooth' });
+            }, 150);
+          } else {
+            const el = document.getElementById(sectionId);
+            el?.scrollIntoView({ behavior: 'smooth' });
+          }
+        }}
+        onNavigateToRoute={(route, urlPath) => {
+          navigateTo(route as any, urlPath);
+        }}
+        onOpenServiceBooking={(serviceName) => {
+          openBookingFor(serviceName || 'Online doctor consultations');
+        }}
+        onOpenVitalLens={() => {
+          setVitalLensOpen(true);
         }}
       />
 
@@ -3687,83 +3822,12 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Fixed Floating WhatsApp, Emergency SOS & Nhealth Vital Lens Widgets */}
-      <aside
-        style={{
-          position: 'fixed',
-          zIndex: 9999,
-        }}
-        aria-label="Direct Emergency SOS, WhatsApp & AI Vitals Scanner"
-        className="bottom-3.5 right-3.5 sm:bottom-5 sm:right-5 flex flex-col items-end gap-2 sm:gap-3 pointer-events-auto"
-      >
-        {/* Requirement 1: Vibrant Purple Floating Icon for Nhealth Vital Lens */}
-        <div className="flex items-center gap-1.5 sm:gap-2 group/vital">
-          {/* Hover Tooltip / Callout: "Nhealth Vital Lens" */}
-          <button
-            type="button"
-            onClick={() => setVitalLensOpen(true)}
-            className="hidden md:flex items-center gap-2 bg-[#1b0a33]/95 text-white text-xs font-bold px-3.5 py-2 rounded-full shadow-2xl border border-purple-400/50 backdrop-blur-md opacity-0 group-hover/vital:opacity-100 transition-opacity duration-200 pointer-events-auto cursor-pointer"
-          >
-            <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
-            <span>Nhealth Vital Lens</span>
-          </button>
 
-          {/* Pulsing Vibrant Purple Action Button - Cute compact on mobile (w-10 h-10), standard on tablet/desktop (sm:w-16 sm:h-16) */}
-          <button
-            type="button"
-            onClick={() => setVitalLensOpen(true)}
-            aria-label="Nhealth Vital Lens"
-            title="Nhealth Vital Lens"
-            className="vital-lens-pulse flex flex-col items-center justify-center w-10 h-10 sm:w-16 sm:h-16 bg-gradient-to-br from-purple-600 via-fuchsia-600 to-purple-800 hover:from-purple-500 hover:to-purple-700 text-white rounded-full shadow-xl transition-transform hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 sm:focus:ring-4 focus:ring-purple-400/50 cursor-pointer"
-          >
-            {/* Heart with vital pulse wave symbol */}
-            <div className="relative flex items-center justify-center">
-              <Heart className="w-4 h-4 sm:w-7 sm:h-7 text-white fill-purple-300/40" />
-              <Activity className="w-2.5 h-2.5 sm:w-4 sm:h-4 text-purple-100 absolute inset-0 m-auto animate-pulse" />
-            </div>
-            <span className="text-[6.5px] sm:text-[9.5px] font-black uppercase tracking-tighter text-purple-100 leading-none mt-0.5">
-              VITALS
-            </span>
-          </button>
-        </div>
-
-        {/* Emergency SOS Round Floating Action Icon */}
-        <div className="flex items-center justify-center">
-          <a
-            href="https://wa.me/919581582220?text=EMERGENCY%20MEDICAL%20SUPPORT%3A%20I%20need%20immediate%20emergency%20care%20assistance."
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Emergency Medical Assistance on WhatsApp at +919581582220"
-            title="24/7 Emergency SOS: +91 95815 82220"
-            className="emergency-pulse flex flex-col items-center justify-center w-10 h-10 sm:w-16 sm:h-16 bg-red-600 hover:bg-red-700 text-white rounded-full shadow-xl transition-transform hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 sm:focus:ring-4 focus:ring-red-400/50 cursor-pointer"
-          >
-            <PhoneCall className="w-3.5 h-3.5 sm:w-6 sm:h-6 text-white drop-shadow-sm mb-0 sm:mb-0.5 animate-pulse" />
-            <span className="text-[7.5px] sm:text-[11px] font-black uppercase tracking-tighter text-white leading-none">
-              SOS
-            </span>
-          </a>
-        </div>
-
-        {/* Floating WhatsApp Round Action Icon */}
-        <div className="flex items-center justify-center">
-          <a
-            href="https://wa.me/919393934621?text=Hi%20Nhealth%2C%20I%20would%20like%20to%20inquire%20about%20at-home%20healthcare%20services."
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Chat with Nhealth on WhatsApp at +919393934621"
-            title="WhatsApp: +91 93939 34621"
-            className="whatsapp-pulse flex items-center justify-center w-10 h-10 sm:w-16 sm:h-16 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-full shadow-xl transition-transform hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 sm:focus:ring-4 focus:ring-emerald-400/50 cursor-pointer"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="w-5 h-5 sm:w-8 sm:h-8 text-white drop-shadow-sm"
-              fill="currentColor"
-            >
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-            </svg>
-          </a>
-        </div>
-      </aside>
+      {/* Modern Responsive Floating Action Button (FAB) Menu - "Quick Look" (Bottom-Right Corner) */}
+      <QuickLookFAB
+        onOpenVitalLens={() => setVitalLensOpen(true)}
+        onOpenVoiceAssistant={() => setVoiceAssistantOpen(true)}
+      />
 
       {/* 1. STARTUP SPLASH SCREEN: Solid Blank White Screen -> Centered Logo + Warm Tagline -> Smooth Fade Out */}
       {splashStep !== 'hidden' && (
