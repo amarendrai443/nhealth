@@ -522,9 +522,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-400/30 flex items-center justify-center font-bold shadow-xs">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
+            <img
+              src="https://i.ibb.co/JW6HFRV0/Nhealth-logo-8cm-x-8cm-high-quality-1-1.png"
+              alt="Nhealth Logo"
+              className="h-9 w-auto object-contain rounded-lg border border-teal-500/30 shrink-0"
+              onError={(e) => {
+                e.currentTarget.src = 'https://i.ibb.co/wZG4rNV3/Nhealth-logo-8cm-x-8cm-high-quality-1-1.png';
+              }}
+            />
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-base sm:text-lg tracking-tight text-white">

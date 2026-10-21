@@ -29,6 +29,7 @@ import {
 import { VitalLensUserData, VitalMetricsResult } from '../types/vitalLens';
 import { VPPGSignalProcessor } from '../utils/vppgEngine';
 import { generateVitalLensPDF } from '../utils/vitalReportGenerator';
+import { saveVitalScan } from '../utils/patientStorage';
 
 interface VitalLensModalProps {
   isOpen: boolean;
@@ -82,6 +83,8 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Step 4: Camera & Scan State
+  const [cameraFacingMode, setCameraFacingMode] = useState<'user' | 'environment'>('user');
+  const [showCameraPrompt, setShowCameraPrompt] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [scanSecondsElapsed, setScanSecondsElapsed] = useState(0);
@@ -262,14 +265,17 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
   };
 
   // Camera Management
-  const startCamera = async () => {
+  const startCamera = async (mode: 'user' | 'environment' = cameraFacingMode) => {
     setCameraError(null);
     // Explicitly re-initialize screen wake lock on camera start/retry
     await requestScreenWakeLock();
     try {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((track) => track.stop());
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'user',
+          facingMode: mode === 'environment' ? { ideal: 'environment' } : 'user',
           width: { ideal: 640 },
           height: { ideal: 480 },
           frameRate: { ideal: 30 },
@@ -297,6 +303,19 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
         'Unable to access your device camera. Please grant camera permission in your browser settings to proceed with the optical vitals scan.'
       );
     }
+  };
+
+  const handleSelectCameraAndStart = async (mode: 'user' | 'environment') => {
+    setCameraFacingMode(mode);
+    setShowCameraPrompt(false);
+    setCurrentStep(4);
+    await startCamera(mode);
+  };
+
+  const toggleCameraFacingMode = async () => {
+    const nextMode = cameraFacingMode === 'user' ? 'environment' : 'user';
+    setCameraFacingMode(nextMode);
+    await startCamera(nextMode);
   };
 
   const stopCamera = () => {
@@ -571,6 +590,13 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
     const metrics = processorRef.current.calculateFinalMetrics(userData);
     metrics.scanTimestamp = new Date().toISOString();
     setScanResults(metrics);
+    // Ultra-light compact data persistence (<2 KB JSON text object)
+    const isGuest = !defaultUserData?.name;
+    const scanMode: 'Logged-in' | 'Guest' = isGuest ? 'Guest' : 'Logged-in';
+    const scanUserId = isGuest
+      ? `GUEST-${(userData.mobileNumber || Date.now().toString()).slice(-6)}`
+      : `USR-${(userData.mobileNumber || 'PATIENT').slice(-6)}`;
+    saveVitalScan(metrics, userData, scanMode, scanUserId);
     setCurrentStep(5);
 
     // Upon completion of the face scan, generate and trigger a downloadable PDF report
@@ -618,9 +644,8 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
     // Re-initialize and request Screen Wake Lock explicitly for the retry scan
     await requestScreenWakeLock();
 
-    // Directly move to Step 4 and start camera
-    setCurrentStep(4);
-    await startCamera();
+    // Prompt user with Camera Selection Modal before launching camera scan
+    setShowCameraPrompt(true);
   };
 
   // Calculate scan progress %
@@ -1105,8 +1130,7 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  setCurrentStep(4);
-                  startCamera();
+                  setShowCameraPrompt(true);
                 }}
                 className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-gradient-to-r from-purple-600 via-fuchsia-600 to-teal-500 hover:brightness-110 text-white font-extrabold text-sm shadow-xl shadow-purple-950/50 transition-all cursor-pointer"
               >
@@ -1148,7 +1172,7 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
                 <p className="text-xs text-slate-300 leading-relaxed">{cameraError}</p>
                 <button
                   type="button"
-                  onClick={startCamera}
+                  onClick={() => startCamera()}
                   className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold cursor-pointer"
                 >
                   Retry Camera Access
@@ -1218,15 +1242,25 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
               </p>
             </div>
 
-            {/* Cancel Button */}
-            <div className="pt-2">
+            {/* Camera Actions: Switch Camera & Cancel Button */}
+            <div className="pt-2 flex items-center justify-center gap-4">
+              <button
+                type="button"
+                onClick={toggleCameraFacingMode}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-600/30 hover:bg-purple-600/50 border border-purple-400/40 text-purple-200 hover:text-white text-xs font-bold transition-all cursor-pointer shadow-xs"
+                title="Switch between front and rear camera"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-purple-300" />
+                <span>Switch to {cameraFacingMode === 'user' ? 'Rear Camera' : 'Front Camera'}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
                   stopCamera();
                   setCurrentStep(3);
                 }}
-                className="text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="text-xs text-slate-400 hover:text-white transition-colors cursor-pointer py-1.5 px-3"
               >
                 Cancel Scan
               </button>
@@ -1566,6 +1600,63 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
                   className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all cursor-pointer shadow-md"
                 >
                   Exit / Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CAMERA SELECTION MODAL PROMPT: Scan by Front Camera or Rear Camera */}
+        {showCameraPrompt && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="bg-[#00172b] text-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-purple-500/40 relative overflow-hidden text-center animate-in zoom-in-95 duration-200">
+              <div className="w-14 h-14 rounded-2xl bg-purple-500/20 text-purple-300 flex items-center justify-center mx-auto mb-4 border border-purple-400/30 shadow-inner">
+                <Camera className="w-7 h-7" />
+              </div>
+              <h3 className="text-xl font-black text-white tracking-tight">
+                Select Camera for Vital Scan
+              </h3>
+              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                Choose which camera you want to use for optical photoplethysmography (vPPG) face vitals analysis:
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mt-6">
+                <button
+                  type="button"
+                  onClick={() => handleSelectCameraAndStart('user')}
+                  className="flex flex-col items-center justify-center p-4 rounded-2xl bg-gradient-to-br from-purple-900/60 to-purple-800/40 hover:from-purple-800/80 hover:to-purple-700/60 border-2 border-purple-400/50 hover:border-purple-300 text-white transition-all cursor-pointer group shadow-lg active:scale-95"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/30 group-hover:bg-purple-500/50 flex items-center justify-center mb-2.5 text-purple-200 shadow-xs">
+                    <User className="w-5 h-5" />
+                  </div>
+                  <span className="font-extrabold text-sm text-white">Scan by Front Camera</span>
+                  <span className="text-[10px] text-purple-200 mt-1 font-medium bg-purple-950/60 px-2 py-0.5 rounded-full border border-purple-400/30">
+                    Selfie / Self Scan
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSelectCameraAndStart('environment')}
+                  className="flex flex-col items-center justify-center p-4 rounded-2xl bg-gradient-to-br from-teal-900/60 to-teal-800/40 hover:from-teal-800/80 hover:to-teal-700/60 border-2 border-teal-400/50 hover:border-teal-300 text-white transition-all cursor-pointer group shadow-lg active:scale-95"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-teal-500/30 group-hover:bg-teal-500/50 flex items-center justify-center mb-2.5 text-teal-200 shadow-xs">
+                    <Camera className="w-5 h-5" />
+                  </div>
+                  <span className="font-extrabold text-sm text-white">Scan by Rear Camera</span>
+                  <span className="text-[10px] text-teal-200 mt-1 font-medium bg-teal-950/60 px-2 py-0.5 rounded-full border border-teal-400/30">
+                    Patient / Family Scan
+                  </span>
+                </button>
+              </div>
+
+              <div className="mt-5 pt-3 border-t border-slate-800 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowCameraPrompt(false)}
+                  className="text-xs text-slate-400 hover:text-white transition-colors cursor-pointer py-1 px-4 rounded-lg hover:bg-white/5"
+                >
+                  Cancel
                 </button>
               </div>
             </div>

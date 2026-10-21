@@ -254,16 +254,21 @@ export const RoleBasedDashboard: React.FC<RoleBasedDashboardProps> = ({
               title="Return to Public Healthcare Portal"
             >
               <img
-                src="https://i.ibb.co/6JR2bwmJ/whatsapp-profile-pic.jpg"
+                src="https://i.ibb.co/JW6HFRV0/Nhealth-logo-8cm-x-8cm-high-quality-1-1.png"
                 alt="Nhealth Logo"
                 className="h-9 w-auto object-contain rounded-lg border border-teal-500/30"
                 onError={(e) => {
-                  e.currentTarget.src = '/splash-logo.png';
+                  e.currentTarget.src = 'https://i.ibb.co/wZG4rNV3/Nhealth-logo-8cm-x-8cm-high-quality-1-1.png';
                 }}
               />
-              <span className="font-extrabold text-lg sm:text-xl tracking-tight text-white group-hover:text-teal-300 transition-colors hidden sm:inline">
-                Nhealth™
-              </span>
+              <div className="flex flex-col text-left">
+                <span className="font-extrabold text-base sm:text-lg tracking-tight text-white group-hover:text-teal-300 transition-colors leading-tight">
+                  Nhealth™
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium hidden sm:inline leading-none">
+                  Unified &amp; At-Home Healthcare Network
+                </span>
+              </div>
             </button>
             <span className="text-slate-600 hidden md:inline">|</span>
             <div className="hidden md:flex items-center gap-2">

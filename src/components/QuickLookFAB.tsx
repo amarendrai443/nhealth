@@ -13,8 +13,10 @@ export const QuickLookFAB: React.FC<QuickLookFABProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const closeTimeoutRef = useRef<any>(null);
+  // Track last touch timestamp to prevent synthetic mouseEnter from colliding with touch click on mobile/tablet
+  const lastTouchTimeRef = useRef<number>(0);
 
-  // Close when clicking outside
+  // Close when clicking or tapping outside
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -25,20 +27,22 @@ export const QuickLookFAB: React.FC<QuickLookFABProps> = ({
       if (e.key === 'Escape') setIsOpen(false);
     };
 
-    document.addEventListener('mousedown', handleOutsideClick);
-    document.addEventListener('touchstart', handleOutsideClick, { passive: true });
+    document.addEventListener('click', handleOutsideClick);
+    document.addEventListener('touchend', handleOutsideClick, { passive: true });
     document.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-      document.removeEventListener('touchstart', handleOutsideClick);
+      document.removeEventListener('click', handleOutsideClick);
+      document.removeEventListener('touchend', handleOutsideClick);
       document.removeEventListener('keydown', handleKeyDown);
       if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
     };
   }, []);
 
-  // Strict hover binding: expansion triggers ONLY when hovering directly on the main button
+  // Strict hover binding: on desktop with mouse, hovering over the button can expand the menu
   const handleButtonMouseEnter = () => {
+    // Ignore synthetic mouseEnter dispatched right after a touch event on mobile/tablets
+    if (Date.now() - lastTouchTimeRef.current < 750) return;
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current);
       closeTimeoutRef.current = null;
@@ -62,12 +66,19 @@ export const QuickLookFAB: React.FC<QuickLookFABProps> = ({
     }, 120);
   };
 
-  const toggleOpen = () => {
+  // Single Click / Single Tap handler: immediate, seamless toggle on single click or tap
+  const handleMainButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current);
       closeTimeoutRef.current = null;
     }
     setIsOpen((prev) => !prev);
+  };
+
+  const handleMainButtonTouchStart = () => {
+    lastTouchTimeRef.current = Date.now();
   };
 
   // Stack items in vertical line, ordered bottom-to-top above the trigger:
@@ -100,12 +111,13 @@ export const QuickLookFAB: React.FC<QuickLookFABProps> = ({
           <div className="flex items-center justify-center w-11 md:w-16 shrink-0">
             <button
               type="button"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 onOpenVoiceAssistant();
                 setIsOpen(false);
               }}
               aria-label="Open Nhealth Voice Assistant"
-              className="flex items-center justify-center w-9 h-9 md:w-14 md:h-14 rounded-full bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white shadow-xl hover:shadow-cyan-500/40 border border-cyan-400/40 hover:scale-105 active:scale-95 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-400"
+              className="touch-manipulation flex items-center justify-center w-9 h-9 md:w-14 md:h-14 rounded-full bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white shadow-xl hover:shadow-cyan-500/40 border border-cyan-400/40 hover:scale-105 active:scale-95 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-400"
             >
               <Mic className="w-4 h-4 md:w-6 md:h-6 text-white drop-shadow" />
             </button>
@@ -121,12 +133,13 @@ export const QuickLookFAB: React.FC<QuickLookFABProps> = ({
           <div className="flex items-center justify-center w-11 md:w-16 shrink-0">
             <button
               type="button"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 onOpenVitalLens();
                 setIsOpen(false);
               }}
               aria-label="Open Nhealth Vital Lens"
-              className="flex flex-col items-center justify-center w-9 h-9 md:w-14 md:h-14 rounded-full bg-gradient-to-br from-purple-600 via-fuchsia-600 to-purple-800 hover:from-purple-500 hover:to-purple-700 text-white shadow-xl hover:shadow-purple-500/40 border border-purple-400/40 hover:scale-105 active:scale-95 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-400"
+              className="touch-manipulation flex flex-col items-center justify-center w-9 h-9 md:w-14 md:h-14 rounded-full bg-gradient-to-br from-purple-600 via-fuchsia-600 to-purple-800 hover:from-purple-500 hover:to-purple-700 text-white shadow-xl hover:shadow-purple-500/40 border border-purple-400/40 hover:scale-105 active:scale-95 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-400"
             >
               <div className="relative flex items-center justify-center">
                 <Heart className="w-3.5 h-3.5 md:w-5 md:h-5 text-white fill-purple-300/40" />
@@ -150,8 +163,12 @@ export const QuickLookFAB: React.FC<QuickLookFABProps> = ({
               href="https://wa.me/919581582220?text=EMERGENCY%20MEDICAL%20SUPPORT%3A%20I%20need%20immediate%20emergency%20care%20assistance."
               target="_blank"
               rel="noopener noreferrer"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsOpen(false);
+              }}
               aria-label="Emergency Medical Assistance on WhatsApp: +919581582220"
-              className="emergency-pulse flex flex-col items-center justify-center w-9 h-9 md:w-14 md:h-14 rounded-full bg-gradient-to-br from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white shadow-xl hover:shadow-red-500/40 border border-red-400/40 hover:scale-105 active:scale-95 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-400"
+              className="touch-manipulation emergency-pulse flex flex-col items-center justify-center w-9 h-9 md:w-14 md:h-14 rounded-full bg-gradient-to-br from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white shadow-xl hover:shadow-red-500/40 border border-red-400/40 hover:scale-105 active:scale-95 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-400"
             >
               <PhoneCall className="w-3.5 h-3.5 md:w-5 md:h-5 text-white drop-shadow-sm animate-pulse" />
               <span className="text-[6px] md:text-[8.5px] font-black uppercase tracking-tight text-white leading-none mt-0.5">
@@ -172,8 +189,12 @@ export const QuickLookFAB: React.FC<QuickLookFABProps> = ({
               href="https://wa.me/919393934621?text=Hi%20Nhealth%2C%20I%20would%20like%20to%20inquire%20about%20at-home%20healthcare%20services."
               target="_blank"
               rel="noopener noreferrer"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsOpen(false);
+              }}
               aria-label="Chat with Nhealth on WhatsApp at 9393934621"
-              className="whatsapp-pulse flex items-center justify-center w-9 h-9 md:w-14 md:h-14 rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-xl hover:shadow-emerald-500/40 border border-emerald-300/40 hover:scale-105 active:scale-95 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              className="touch-manipulation whatsapp-pulse flex items-center justify-center w-9 h-9 md:w-14 md:h-14 rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-xl hover:shadow-emerald-500/40 border border-emerald-300/40 hover:scale-105 active:scale-95 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -187,15 +208,16 @@ export const QuickLookFAB: React.FC<QuickLookFABProps> = ({
         </div>
       </div>
 
-      {/* Main Trigger Button: 44px on mobile, 64px on desktop, center-aligned */}
+      {/* Main Trigger Button: 44px on mobile, 64px on desktop, single click/tap immediate toggle */}
       <div className="flex items-center justify-center pointer-events-auto w-11 md:w-16">
         <button
           type="button"
-          onClick={toggleOpen}
+          onClick={handleMainButtonClick}
+          onTouchStart={handleMainButtonTouchStart}
           onMouseEnter={handleButtonMouseEnter}
           aria-expanded={isOpen}
           aria-label="Quick Look - Emergency, WhatsApp, Vitals & Voice AI"
-          className="quicklook-pulse relative flex flex-col items-center justify-center w-11 h-11 md:w-16 md:h-16 rounded-full bg-gradient-to-tr from-[#001d31] via-[#002b49] to-[#005a7a] hover:from-[#00253f] hover:to-[#007096] text-white shadow-2xl hover:shadow-teal-500/30 border-2 border-teal-400/50 hover:border-teal-300 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer focus:outline-none focus:ring-4 focus:ring-teal-400/40"
+          className="touch-manipulation quicklook-pulse relative flex flex-col items-center justify-center w-11 h-11 md:w-16 md:h-16 rounded-full bg-gradient-to-tr from-[#001d31] via-[#002b49] to-[#005a7a] hover:from-[#00253f] hover:to-[#007096] text-white shadow-2xl hover:shadow-teal-500/30 border-2 border-teal-400/50 hover:border-teal-300 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer focus:outline-none focus:ring-4 focus:ring-teal-400/40"
         >
           {/* Subtle multi-layer ambient background shine */}
           <div className="absolute inset-0 rounded-full bg-teal-400/10 animate-pulse pointer-events-none" />

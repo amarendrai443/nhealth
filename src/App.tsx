@@ -61,6 +61,7 @@ import { AdminDashboardPage } from './components/AdminDashboardPage';
 import { CorporateEnquiriesPage } from './components/CorporateEnquiriesPage';
 import { TeamsPage } from './components/TeamsPage';
 import { RoleBasedDashboard } from './components/RoleBasedDashboard';
+import { PatientDashboardPage } from './components/PatientDashboardPage';
 import { VoiceAssistantModal } from './components/VoiceAssistantModal';
 import { QuickLookFAB } from './components/QuickLookFAB';
 import {
@@ -79,6 +80,7 @@ import {
 import { registerLivePartnerDoctor, unregisterPartnerDoctor } from './data/doctorsData';
 import { ServiceItem, BookingFormData, UserAccount, ConfirmedBooking } from './types/serviceBooking';
 import { EXTRACTED_SERVICES } from './data/servicesData';
+import { saveGuestBooking } from './utils/patientStorage';
 
 const NHEALTH_LOGO_URL = 'https://i.ibb.co/JW6HFRV0/Nhealth-logo-8cm-x-8cm-high-quality-1-1.png';
 const NHEALTH_LOGO_FALLBACK = '/nhealth_logo.png';
@@ -328,12 +330,14 @@ type RoutePath =
   | 'command-center'
   | 'corporate-enquiries'
   | 'dashboard'
+  | 'patient-dashboard'
   | 'teams';
 
 function getRouteFromPath(pathname: string): RoutePath {
   if (typeof window !== 'undefined' && window.location.hash === '#teams') return 'teams';
   if (pathname === '/teams' || pathname.startsWith('/teams')) return 'teams';
   if (pathname === '/auth' || pathname.startsWith('/auth')) return 'auth';
+  if (pathname === '/patient-dashboard' || pathname.startsWith('/patient-dashboard')) return 'patient-dashboard';
   if (pathname === '/partner-with-us' || pathname.startsWith('/partner-with-us')) return 'partner-with-us';
   if (pathname === '/corporate-enquiries' || pathname.startsWith('/corporate-enquiries')) return 'corporate-enquiries';
   if (pathname === '/command-center' || pathname.startsWith('/command-center')) return 'command-center';
@@ -348,16 +352,66 @@ function getRouteFromPath(pathname: string): RoutePath {
 }
 
 export default function App() {
-  // Dedicated Page Routing State (/auth, /partner-with-us, /command-center, /corporate-enquiries, /teams, #teams, /)
+  // User Authentication & History States
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('nhealth_user') !== null;
+    } catch {
+      return false;
+    }
+  });
+
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
+    try {
+      const saved = localStorage.getItem('nhealth_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [bookingHistory, setBookingHistory] = useState<ConfirmedBooking[]>(() => {
+    try {
+      const saved = localStorage.getItem('nhealth_bookings');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Dedicated Page Routing State with Authentication & Routing Lock for logged-in users
   const [currentRoute, setCurrentRoute] = useState<RoutePath>(() => {
+    let storedUser: UserAccount | null = null;
+    try {
+      const saved = localStorage.getItem('nhealth_user');
+      if (saved) storedUser = JSON.parse(saved);
+    } catch {}
+
     if (typeof window !== 'undefined') {
       if (window.location.hash === '#teams') return 'teams';
-      return getRouteFromPath(window.location.pathname);
+      const parsed = getRouteFromPath(window.location.pathname);
+      // Restrict access to Hero/Landing page for logged-in users
+      if (storedUser && (parsed === 'home' || window.location.pathname === '/' || window.location.pathname === '')) {
+        return storedUser.role === 'Patient' || storedUser.accountType === 'Patient'
+          ? 'patient-dashboard'
+          : 'dashboard';
+      }
+      return parsed;
     }
-    return 'home';
+    return storedUser ? 'patient-dashboard' : 'home';
   });
 
   const navigateTo = (route: RoutePath, urlPath?: string) => {
+    // Restrict access to Hero page for logged-in users
+    if (isLoggedIn && route === 'home') {
+      const fallbackRoute: RoutePath =
+        currentUser?.role === 'Patient' || currentUser?.accountType === 'Patient'
+          ? 'patient-dashboard'
+          : 'dashboard';
+      route = fallbackRoute;
+      urlPath = `/${fallbackRoute}`;
+    }
+
     let path = urlPath;
     if (!path) {
       if (route === 'home') path = '/';
@@ -376,14 +430,31 @@ export default function App() {
       if (window.location.hash === '#teams') {
         setCurrentRoute('teams');
       } else {
-        setCurrentRoute(getRouteFromPath(window.location.pathname));
+        const parsed = getRouteFromPath(window.location.pathname);
+        if (isLoggedIn && (parsed === 'home' || window.location.pathname === '/')) {
+          setCurrentRoute(
+            currentUser?.role === 'Patient' || currentUser?.accountType === 'Patient'
+              ? 'patient-dashboard'
+              : 'dashboard'
+          );
+        } else {
+          setCurrentRoute(parsed);
+        }
       }
     };
     const handleHashChange = () => {
       if (window.location.hash === '#teams') {
         setCurrentRoute('teams');
       } else if (window.location.pathname === '/' && window.location.hash !== '#teams') {
-        setCurrentRoute('home');
+        if (isLoggedIn) {
+          setCurrentRoute(
+            currentUser?.role === 'Patient' || currentUser?.accountType === 'Patient'
+              ? 'patient-dashboard'
+              : 'dashboard'
+          );
+        } else {
+          setCurrentRoute('home');
+        }
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -392,7 +463,7 @@ export default function App() {
       window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('hashchange', handleHashChange);
     };
-  }, []);
+  }, [isLoggedIn, currentUser]);
 
   // Partner Directory & Admin Approval State
   const [partners, setPartners] = useState<PartnerApplication[]>(() => {
@@ -521,38 +592,17 @@ export default function App() {
     try {
       localStorage.setItem('nhealth_user', JSON.stringify(user));
     } catch {}
-    navigateTo('dashboard', '/dashboard');
+    if (user.role === 'Patient' || user.accountType === 'Patient') {
+      navigateTo('patient-dashboard', '/patient-dashboard');
+    } else {
+      navigateTo('dashboard', '/dashboard');
+    }
   };
 
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [bookingServiceType, setBookingServiceType] = useState('Home Diagnostics');
 
-  // User Authentication & History States
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('nhealth_user') !== null;
-    } catch {
-      return false;
-    }
-  });
 
-  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
-    try {
-      const saved = localStorage.getItem('nhealth_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-
-  const [bookingHistory, setBookingHistory] = useState<ConfirmedBooking[]>(() => {
-    try {
-      const saved = localStorage.getItem('nhealth_bookings');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
 
   const [loginName, setLoginName] = useState('');
   const [loginRedirectFromBooking, setLoginRedirectFromBooking] = useState(false);
@@ -966,7 +1016,13 @@ export default function App() {
     setCurrentUser(null);
     try {
       localStorage.removeItem('nhealth_user');
+      sessionStorage.removeItem('nhealth_user');
     } catch {}
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    setCurrentRoute('home');
   };
 
   const finalizeBooking = (
@@ -1005,6 +1061,8 @@ export default function App() {
         } catch {}
         return updated;
       });
+    } else {
+      saveGuestBooking(confirmed);
     }
 
     setConfirmedBookingData(confirmed);
@@ -1160,6 +1218,59 @@ export default function App() {
           }
         }}
       />
+    );
+  }
+
+  if (currentRoute === 'patient-dashboard' || (isLoggedIn && (currentUser?.role === 'Patient' || currentUser?.accountType === 'Patient'))) {
+    return (
+      <>
+        <PatientDashboardPage
+          currentUser={currentUser}
+          bookingHistory={bookingHistory}
+          onNavigateHome={() => {
+            // Stay within Patient Dashboard - do not redirect to Hero page
+            setCurrentRoute('patient-dashboard');
+          }}
+          onOpenBookingModal={(serviceType) => openBookingFor(serviceType)}
+          onOpenVitalLens={() => setVitalLensOpen(true)}
+          onLogout={handleLogout}
+        />
+        {/* Nhealth Vital Lens: AI Camera Biometrics Scan Modal */}
+        <VitalLensModal
+          isOpen={vitalLensOpen}
+          onClose={() => setVitalLensOpen(false)}
+          onBookDoctor={(serviceName) => {
+            setVitalLensOpen(false);
+            openBookingFor(serviceName || 'Online doctor consultations');
+          }}
+          defaultUserData={{
+            name: currentUser?.name,
+            phone: currentUser?.phone,
+          }}
+        />
+        {/* Nhealth Service Booking Modal */}
+        <ServiceBookingModal
+          service={selectedServiceForBooking}
+          isOpen={isServiceBookingOpen}
+          onClose={() => {
+            setIsServiceBookingOpen(false);
+            setSelectedServiceForBooking(null);
+            setCustomPrefillSymptoms('');
+          }}
+          onSubmitBooking={handleBookingFormSubmit}
+          initialPhone={currentUser?.phone || ''}
+          initialName={currentUser?.name || ''}
+          initialSymptoms={customPrefillSymptoms}
+        />
+        {/* Booking Confirmation Modal */}
+        <BookingConfirmationModal
+          booking={confirmedBookingData}
+          isOpen={isConfirmationModalOpen}
+          onClose={() => setIsConfirmationModalOpen(false)}
+          isLoggedIn={isLoggedIn}
+          onViewHistory={() => {}}
+        />
+      </>
     );
   }
 
@@ -1379,6 +1490,7 @@ export default function App() {
               <Search className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
             </button>
 
+
             {/* Partner With Us Dedicated Button */}
             <button
               type="button"
@@ -1588,6 +1700,17 @@ export default function App() {
                   <span>Patient Login &amp; Registration (/auth)</span>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  navigateTo('patient-dashboard', '/patient-dashboard');
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-[#00172d] hover:bg-[#00223f] text-cyan-300 border border-cyan-800/40 text-xs font-semibold cursor-pointer"
+              >
+                <Activity className="w-4 h-4 text-cyan-400" />
+                <span>Patient Dashboard (/patient-dashboard)</span>
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -3822,6 +3945,20 @@ export default function App() {
         </div>
       </footer>
 
+
+      {/* Nhealth Vital Lens: AI Camera Biometrics Scan Modal (Universal & Guest Mode) */}
+      <VitalLensModal
+        isOpen={vitalLensOpen}
+        onClose={() => setVitalLensOpen(false)}
+        onBookDoctor={(serviceName) => {
+          setVitalLensOpen(false);
+          openBookingFor(serviceName || 'Online doctor consultations');
+        }}
+        defaultUserData={{
+          name: currentUser?.name,
+          phone: currentUser?.phone,
+        }}
+      />
 
       {/* Modern Responsive Floating Action Button (FAB) Menu - "Quick Look" (Bottom-Right Corner) */}
       <QuickLookFAB
