@@ -306,6 +306,7 @@ export function syncBookingToInvoice(booking: ConfirmedBooking): InvoiceData {
 export const DEFAULT_GUEST_BOOKINGS: ConfirmedBooking[] = [
   {
     referenceId: 'GBK-2026-9912',
+    serviceId: 'careride',
     serviceName: 'CareRide / At-Home Healthcare',
     patientName: 'Ananya Reddy',
     age: '29',
@@ -324,6 +325,7 @@ export const DEFAULT_GUEST_BOOKINGS: ConfirmedBooking[] = [
   },
   {
     referenceId: 'GBK-2026-9844',
+    serviceId: 'diagnostics',
     serviceName: 'Home diagnostics & lab tests',
     patientName: 'Vikram Sethi',
     age: '45',
@@ -338,10 +340,11 @@ export const DEFAULT_GUEST_BOOKINGS: ConfirmedBooking[] = [
     preferredTimeSlot: '07:00 AM - 09:00 AM',
     bookedAt: new Date(Date.now() - 3600000 * 24).toISOString(),
     isGuest: true,
-    status: 'Completed',
+    status: 'Report Ready',
   },
   {
     referenceId: 'GBK-2026-9791',
+    serviceId: 'doctor-visit',
     serviceName: 'Doctor home visits',
     patientName: 'Sunita Sharma',
     age: '62',
@@ -356,10 +359,11 @@ export const DEFAULT_GUEST_BOOKINGS: ConfirmedBooking[] = [
     preferredTimeSlot: '04:00 PM - 06:00 PM',
     bookedAt: new Date(Date.now() - 3600000 * 48).toISOString(),
     isGuest: true,
-    status: 'In-Progress',
+    status: 'Clinician Dispatched',
   },
   {
     referenceId: 'GBK-2026-9650',
+    serviceId: 'nurse-care',
     serviceName: 'Specialized nursing care at home',
     patientName: 'Karthik Rao',
     age: '38',

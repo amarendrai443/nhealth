@@ -32,7 +32,6 @@ import {
   Plus,
   Sun,
   Moon,
-  Wallet,
   Gift,
   Folder,
   HelpCircle,
@@ -50,6 +49,130 @@ import { generateInvoicePDF, InvoiceData } from '../utils/invoicePdfGenerator';
 import { getStoredVitalScans, getStoredInvoices, CompactVitalScan } from '../utils/patientStorage';
 import { VitalMetricsResult, VitalLensUserData } from '../types/vitalLens';
 import { SymptomDoctorFinder } from './SymptomDoctorFinder';
+
+// Realistic vector wallet logo with multi-tone leather gradient, fine perimeter stitching, card slots & metallic snap clasp
+export const RealisticWalletLogo: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
+  <svg
+    viewBox="0 0 32 32"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+    aria-hidden="true"
+  >
+    <defs>
+      {/* Rich multi-tone leather gradient */}
+      <linearGradient id="nhRealisticWalletLeather" x1="3" y1="6" x2="29" y2="28" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#9a5b13" />
+        <stop offset="30%" stopColor="#783e0c" />
+        <stop offset="70%" stopColor="#5a2e0a" />
+        <stop offset="100%" stopColor="#3d1d05" />
+      </linearGradient>
+
+      {/* Leather Flap Gradient */}
+      <linearGradient id="nhRealisticWalletFlap" x1="16" y1="12" x2="30" y2="20" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#a7681b" />
+        <stop offset="50%" stopColor="#82430d" />
+        <stop offset="100%" stopColor="#4c2206" />
+      </linearGradient>
+
+      {/* 3D Gold Metallic Snap Clasp */}
+      <radialGradient id="nhRealisticWalletGoldClasp" cx="24.8" cy="15.8" r="2.8" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#fef08a" />
+        <stop offset="40%" stopColor="#facc15" />
+        <stop offset="80%" stopColor="#ca8a04" />
+        <stop offset="100%" stopColor="#713f12" />
+      </radialGradient>
+
+      {/* Inserted Credit Cards Gradients */}
+      <linearGradient id="nhWalletCardCyan" x1="7" y1="3" x2="23" y2="9" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#38bdf8" />
+        <stop offset="100%" stopColor="#0284c7" />
+      </linearGradient>
+      <linearGradient id="nhWalletCardTeal" x1="5" y1="5.5" x2="21" y2="11" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#2dd4bf" />
+        <stop offset="100%" stopColor="#0f766e" />
+      </linearGradient>
+
+      {/* Drop Shadow */}
+      <filter id="nhWalletShadow" x="1" y="4" width="30" height="26" filterUnits="userSpaceOnUse">
+        <feDropShadow dx="0" dy="1.2" stdDeviation="1" floodColor="#000000" floodOpacity="0.4" />
+      </filter>
+    </defs>
+
+    {/* Rear Credit Card (Sky Blue) */}
+    <rect x="8.5" y="4" width="15" height="7" rx="1.6" fill="url(#nhWalletCardCyan)" />
+    <line x1="8.5" y1="6.8" x2="23.5" y2="6.8" stroke="#0369a1" strokeWidth="0.8" opacity="0.7" />
+
+    {/* Front Credit Card (Teal with EMV Chip) */}
+    <rect x="5.5" y="6.2" width="16" height="7.5" rx="1.6" fill="url(#nhWalletCardTeal)" />
+    <rect x="7.2" y="7.8" width="2.6" height="2" rx="0.4" fill="#fef08a" stroke="#ca8a04" strokeWidth="0.3" />
+
+    {/* Main Leather Body */}
+    <rect
+      x="2.5"
+      y="8.5"
+      width="27"
+      height="18"
+      rx="3.5"
+      fill="url(#nhRealisticWalletLeather)"
+      filter="url(#nhWalletShadow)"
+    />
+
+    {/* Top Leather Fold Edge Highlight */}
+    <path
+      d="M3 11C3 9.62 4.12 8.5 5.5 8.5H26.5C27.88 8.5 29 9.62 29 11V11.8H3V11Z"
+      fill="#ca8a04"
+      fillOpacity="0.25"
+    />
+
+    {/* Perimeter Stitching Line (Realistic fine dashed thread) */}
+    <rect
+      x="4"
+      y="10"
+      width="24"
+      height="15"
+      rx="2.5"
+      fill="none"
+      stroke="#fef08a"
+      strokeWidth="0.55"
+      strokeDasharray="1.2 0.9"
+      strokeOpacity="0.65"
+    />
+
+    {/* Center fold crease line */}
+    <path
+      d="M3 17.5C10 18 20 17 29 17.5"
+      stroke="#1f0f03"
+      strokeWidth="0.5"
+      strokeOpacity="0.55"
+    />
+
+    {/* Flap Closure Tab */}
+    <path
+      d="M17 13H27.5C28.88 13 30 14.12 30 15.5V16.5C30 17.88 28.88 19 27.5 19H17C16.17 19 15.5 18.33 15.5 17.5V14.5C15.5 13.67 16.17 13 17 13Z"
+      fill="url(#nhRealisticWalletFlap)"
+      stroke="#361804"
+      strokeWidth="0.4"
+    />
+
+    {/* Stitching on Flap */}
+    <path
+      d="M17.5 14.2H27.2C27.9 14.2 28.6 14.8 28.6 15.5V16.5C28.6 17.2 27.9 17.8 27.2 17.8H17.5"
+      fill="none"
+      stroke="#fef08a"
+      strokeWidth="0.5"
+      strokeDasharray="0.9 0.8"
+      strokeOpacity="0.6"
+    />
+
+    {/* 3D Metallic Clasp Button */}
+    <circle cx="24.8" cy="16" r="2.2" fill="url(#nhRealisticWalletGoldClasp)" stroke="#78350f" strokeWidth="0.35" />
+    <circle cx="24.8" cy="16" r="0.9" fill="#713f12" />
+    <circle cx="24.6" cy="15.7" r="0.4" fill="#ffffff" fillOpacity="0.85" />
+  </svg>
+);
+
+export const ModernWalletIcon = RealisticWalletLogo;
 
 interface PatientDashboardPageProps {
   currentUser?: UserAccount | null;
@@ -399,7 +522,7 @@ export const PatientDashboardPage: React.FC<PatientDashboardPageProps> = ({
               }`}>
                 Nhealth<span className={isDark ? 'text-cyan-400' : 'text-[#008080]'}>™</span>
               </span>
-              <span className={`text-[10px] sm:text-xs font-medium tracking-tight truncate ${
+              <span className={`hidden sm:inline text-[10px] sm:text-xs font-medium tracking-tight truncate ${
                 isDark ? 'text-slate-300' : 'text-slate-500'
               }`}>
                 Unified &amp; At-Home Healthcare Network
@@ -409,61 +532,27 @@ export const PatientDashboardPage: React.FC<PatientDashboardPageProps> = ({
         </div>
 
         {/* Header Right Actions */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-          {/* 24/7 Emergency SOS Badge */}
-          <a
-            href="https://wa.me/919581582220?text=EMERGENCY%20MEDICAL%20SUPPORT%3A%20I%20need%20immediate%20emergency%20care%20assistance."
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden sm:inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-red-600/20 hover:bg-red-600/30 text-red-500 dark:text-red-300 border border-red-500/40 text-xs font-bold transition-all animate-pulse"
-          >
-            <span className="w-2 h-2 rounded-full bg-red-500" />
-            <span>24/7 SOS</span>
-          </a>
-
-          {/* LIGHT / DARK THEME TOGGLE SWITCH (Light Mode Default with Clean White BG) */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            aria-label="Toggle Light/Dark Theme"
-            className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer shrink-0 shadow-xs ${
-              isDark
-                ? 'bg-cyan-950/70 hover:bg-cyan-900/80 text-amber-300 border-amber-400/40'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
-            }`}
-          >
-            {isDark ? (
-              <>
-                <Sun className="w-3.5 h-3.5 text-amber-300" />
-                <span className="hidden sm:inline">Light Mode</span>
-              </>
-            ) : (
-              <>
-                <Moon className="w-3.5 h-3.5 text-slate-700" />
-                <span className="hidden sm:inline">Dark Mode</span>
-              </>
-            )}
-          </button>
-
-          {/* HEADER QUICK ACTION: WALLET */}
-          <div className="relative">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* 1. WALLET ICON (Visible on all screens: small round icon with realistic wallet logo) */}
+          <div className="relative shrink-0">
             <button
               type="button"
               onClick={() => {
                 setWalletOpen((prev) => !prev);
                 setNotificationsOpen(false);
               }}
-              title="Nhealth Care Wallet"
+              title={`Nhealth Care Wallet (₹${walletBalance})`}
               aria-label="Nhealth Care Wallet"
-              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer shrink-0 shadow-xs ${
+              className={`relative p-2 rounded-full border transition-all cursor-pointer shrink-0 shadow-xs flex items-center justify-center ${
                 isDark
-                  ? 'bg-emerald-950/70 hover:bg-emerald-900/80 text-emerald-300 border-emerald-500/40'
-                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                  ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-200 border-cyan-800/40 hover:border-amber-400/50'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 hover:border-amber-400/50'
               }`}
             >
-              <Wallet className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <span className="font-mono">₹{walletBalance}</span>
+              <RealisticWalletLogo className="w-4 h-4 sm:w-4.5 sm:h-4.5 shrink-0" />
+              {walletBalance > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-[#00172d]" />
+              )}
             </button>
 
             {/* Wallet Dropdown Popover */}
@@ -475,8 +564,8 @@ export const PatientDashboardPage: React.FC<PatientDashboardPageProps> = ({
               >
                 <div className="flex items-center justify-between pb-3 border-b border-slate-700/40">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                      <Wallet className="w-4 h-4" />
+                    <div className="w-8 h-8 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-500 flex items-center justify-center shadow-xs">
+                      <RealisticWalletLogo className="w-5 h-5" />
                     </div>
                     <div>
                       <h4 className="text-xs font-black tracking-tight">Nhealth Care Wallet</h4>
@@ -636,7 +725,44 @@ export const PatientDashboardPage: React.FC<PatientDashboardPageProps> = ({
             )}
           </div>
 
-          {/* Fully Functional Scan Vitals Button (Responsive across all screens) */}
+          {/* 3. LIGHT / DARK THEME TOGGLE SWITCH (Always visible across mobile, tablet, and desktop) */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label="Toggle Light/Dark Theme"
+            className={`inline-flex items-center justify-center p-2 sm:px-2.5 sm:py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer shrink-0 shadow-xs ${
+              isDark
+                ? 'bg-cyan-950/70 hover:bg-cyan-900/80 text-amber-300 border-amber-400/40'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+            }`}
+          >
+            {isDark ? (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-300" />
+                <span className="hidden xl:inline">Light</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5 text-slate-700" />
+                <span className="hidden xl:inline">Dark</span>
+              </>
+            )}
+          </button>
+
+          {/* DESKTOP-ONLY HEADER ACTIONS (Strictly hidden on Mobile & Tablet <= 1024px to guarantee clean fit) */}
+          {/* 24/7 Emergency SOS Badge (Desktop Only) */}
+          <a
+            href="https://wa.me/919581582220?text=EMERGENCY%20MEDICAL%20SUPPORT%3A%20I%20need%20immediate%20emergency%20care%20assistance."
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-600/20 hover:bg-red-600/30 text-red-500 dark:text-red-300 border border-red-500/40 text-xs font-bold transition-all animate-pulse shrink-0"
+          >
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+            <span>24/7 SOS</span>
+          </a>
+
+          {/* Scan Vitals Button (Desktop Only) */}
           <button
             type="button"
             onClick={(e) => {
@@ -646,23 +772,22 @@ export const PatientDashboardPage: React.FC<PatientDashboardPageProps> = ({
                 onOpenVitalLens();
               }
             }}
-            className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-600/30 to-pink-600/25 hover:from-purple-600/50 hover:to-pink-600/40 text-purple-700 dark:text-purple-200 hover:text-purple-900 dark:hover:text-white border border-purple-400/40 text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
+            className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-600/30 to-pink-600/25 hover:from-purple-600/50 hover:to-pink-600/40 text-purple-700 dark:text-purple-200 hover:text-purple-900 dark:hover:text-white border border-purple-400/40 text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
             title="Instant Camera Vitals Scan"
           >
             <HeartPulse className="w-3.5 h-3.5 text-purple-600 dark:text-purple-300 animate-pulse shrink-0" />
-            <span className="hidden sm:inline">Scan Vitals</span>
-            <span className="sm:hidden">Scan</span>
+            <span>Scan Vitals</span>
           </button>
 
-          {/* User Profile Pill */}
-          <div className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-full border shrink-0 ${
+          {/* User Profile Pill (Desktop Only) */}
+          <div className={`hidden lg:flex items-center gap-2 px-2.5 py-1.5 rounded-full border shrink-0 ${
             isDark ? 'bg-white/5 border-cyan-800/40 text-white' : 'bg-slate-100 border-slate-200 text-slate-800'
           }`}>
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-tr from-[#008080] to-teal-500 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#008080] to-teal-500 text-white flex items-center justify-center font-bold text-xs shadow-xs">
               {patientName.charAt(0).toUpperCase()}
             </div>
-            <div className="hidden sm:flex flex-col text-left pr-1">
-              <span className={`text-xs font-bold leading-tight truncate max-w-[100px] md:max-w-[130px] ${
+            <div className="flex flex-col text-left pr-1">
+              <span className={`text-xs font-bold leading-tight truncate max-w-[120px] ${
                 isDark ? 'text-white' : 'text-[#002b49]'
               }`}>
                 {patientName}
@@ -675,17 +800,17 @@ export const PatientDashboardPage: React.FC<PatientDashboardPageProps> = ({
             </div>
           </div>
 
-          {/* Reliable Logout Button (All views) */}
+          {/* Reliable Logout Button (Desktop Only) */}
           {onLogout && (
             <button
               type="button"
               onClick={onLogout}
-              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-red-600/15 hover:bg-red-600/25 text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-white border border-red-500/30 text-xs font-bold transition-colors cursor-pointer shrink-0"
+              className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600/15 hover:bg-red-600/25 text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-white border border-red-500/30 text-xs font-bold transition-colors cursor-pointer shrink-0"
               title="Logout"
               aria-label="Logout"
             >
-              <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500 dark:text-red-400" />
-              <span className="hidden sm:inline">Logout</span>
+              <LogOut className="w-3.5 h-3.5 text-red-500 dark:text-red-400" />
+              <span>Logout</span>
             </button>
           )}
         </div>
@@ -1385,7 +1510,7 @@ export const PatientDashboardPage: React.FC<PatientDashboardPageProps> = ({
                   className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs cursor-pointer shrink-0 self-start flex items-center gap-1.5 shadow-md shadow-purple-950/20"
                 >
                   <Eye className="w-4 h-4" />
-                  <span>Launch New Camera Scan</span>
+                  <span>Launch New Vital Scan</span>
                 </button>
               </div>
 

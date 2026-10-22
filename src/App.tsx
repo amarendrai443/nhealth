@@ -402,12 +402,14 @@ export default function App() {
   });
 
   const navigateTo = (route: RoutePath, urlPath?: string) => {
-    // Restrict access to Hero page for logged-in users
-    if (isLoggedIn && route === 'home') {
-      const fallbackRoute: RoutePath =
-        currentUser?.role === 'Patient' || currentUser?.accountType === 'Patient'
-          ? 'patient-dashboard'
-          : 'dashboard';
+    // Enforce logout-only exit for logged-in patients: Landing/Hero is completely inaccessible
+    if (isLoggedIn && (currentUser?.role === 'Patient' || currentUser?.accountType === 'Patient')) {
+      if (route === 'home' || route === 'teams' || !route) {
+        route = 'patient-dashboard';
+        urlPath = '/patient-dashboard';
+      }
+    } else if (isLoggedIn && route === 'home') {
+      const fallbackRoute: RoutePath = 'dashboard';
       route = fallbackRoute;
       urlPath = `/${fallbackRoute}`;
     }
@@ -419,14 +421,54 @@ export default function App() {
       else path = `/${route}`;
     }
     if (typeof window !== 'undefined') {
-      window.history.pushState({}, '', path);
+      window.history.pushState({ patientLocked: isLoggedIn && (currentUser?.role === 'Patient' || currentUser?.accountType === 'Patient') }, '', path);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     setCurrentRoute(route);
   };
 
+  // Dedicated Session Lock for logged-in patients: trap browser/device back button & lock session
   useEffect(() => {
-    const handlePopState = () => {
+    const isPatientSession =
+      isLoggedIn && (currentUser?.role === 'Patient' || currentUser?.accountType === 'Patient');
+
+    if (!isPatientSession) return;
+
+    if (typeof window !== 'undefined') {
+      try {
+        if (window.location.pathname !== '/patient-dashboard') {
+          window.history.replaceState({ patientLocked: true }, '', '/patient-dashboard');
+        }
+        window.history.pushState({ patientLocked: true }, '', '/patient-dashboard');
+      } catch {}
+    }
+
+    const handlePatientSessionTrap = (e: PopStateEvent) => {
+      // Re-push patient dashboard state to keep user locked inside active session
+      if (typeof window !== 'undefined') {
+        try {
+          window.history.pushState({ patientLocked: true }, '', '/patient-dashboard');
+        } catch {}
+      }
+      setCurrentRoute('patient-dashboard');
+    };
+
+    window.addEventListener('popstate', handlePatientSessionTrap);
+    return () => {
+      window.removeEventListener('popstate', handlePatientSessionTrap);
+    };
+  }, [isLoggedIn, currentUser]);
+
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (isLoggedIn && (currentUser?.role === 'Patient' || currentUser?.accountType === 'Patient')) {
+        // Enforce active session lock: trap browser/hardware back button and stay inside patient dashboard
+        try {
+          window.history.pushState({ patientLocked: true }, '', '/patient-dashboard');
+        } catch {}
+        setCurrentRoute('patient-dashboard');
+        return;
+      }
       if (window.location.hash === '#teams') {
         setCurrentRoute('teams');
       } else {
@@ -443,6 +485,13 @@ export default function App() {
       }
     };
     const handleHashChange = () => {
+      if (isLoggedIn && (currentUser?.role === 'Patient' || currentUser?.accountType === 'Patient')) {
+        try {
+          window.history.pushState({ patientLocked: true }, '', '/patient-dashboard');
+        } catch {}
+        setCurrentRoute('patient-dashboard');
+        return;
+      }
       if (window.location.hash === '#teams') {
         setCurrentRoute('teams');
       } else if (window.location.pathname === '/' && window.location.hash !== '#teams') {
@@ -2244,7 +2293,7 @@ export default function App() {
         </section>
 
         {/* Services Section */}
-        <section id="services" className="py-12 sm:py-20 lg:py-28 bg-white">
+        <section id="services" className="py-12 sm:py-20 lg:py-28 bg-white scroll-mt-24">
           <div className="max-w-7xl mx-auto px-2 xs:px-3.5 sm:px-6 lg:px-12">
             {/* AI-Powered Symptom & Doctor Finder Search Bar placed directly ABOVE Clinical Excellence At Doorstep */}
             <div id="symptom-doctor-finder" className="scroll-mt-24">
@@ -2789,7 +2838,7 @@ export default function App() {
         </section>
 
         {/* Contact & Collaboration Section */}
-        <section id="contact" className="py-20 lg:py-28 bg-[#f8fafc]">
+        <section id="contact" className="py-20 lg:py-28 bg-[#f8fafc] scroll-mt-24">
           <div className="max-w-4xl mx-auto px-6 lg:px-8">
             <div className="bg-white rounded-2xl shadow-xl border border-slate-200/90 p-8 sm:p-12">
               <div className="text-center max-w-xl mx-auto mb-10">

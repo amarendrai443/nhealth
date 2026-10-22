@@ -171,9 +171,9 @@ export const ServiceBookingModal: React.FC<ServiceBookingModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="booking-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-5 backdrop-blur-xs overflow-y-auto"
+      className="fixed inset-0 z-[2000] flex flex-col items-center justify-start bg-black/65 p-3 sm:p-5 pt-20 sm:pt-24 pb-8 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200"
     >
-      <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 relative animate-in fade-in zoom-in-95 duration-200 my-auto overflow-hidden">
+      <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[calc(100vh-6.5rem)] sm:max-h-[calc(100vh-7.5rem)] flex flex-col shadow-2xl border border-slate-200 relative animate-in zoom-in-95 duration-200 my-auto overflow-hidden">
         {/* Modal Top Header with Service Badge */}
         <div className="bg-gradient-to-r from-[#002b49] via-[#00385e] to-[#008080] text-white p-5 sm:p-6 relative shrink-0">
           <button

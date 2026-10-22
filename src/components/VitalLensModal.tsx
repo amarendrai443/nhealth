@@ -196,6 +196,45 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
     }
   }, [isOpen]);
 
+  // Handle Browser / Hardware Back Button & Escape key dismiss
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Push history state to intercept browser / hardware Back button
+    const historyKey = 'vitalScanModalOpen';
+    try {
+      window.history.pushState({ [historyKey]: true }, '', window.location.href);
+    } catch {}
+
+    let dismissedByHistory = false;
+
+    const handlePopState = () => {
+      dismissedByHistory = true;
+      onClose();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('keydown', handleKeyDown);
+
+      // If dismissed by UI action (backdrop tap, close button), revert the history state we pushed
+      if (!dismissedByHistory && window.history.state && window.history.state[historyKey]) {
+        try {
+          window.history.back();
+        } catch {}
+      }
+    };
+  }, [isOpen, onClose]);
+
   // Synchronize height and weight units
   const handleHeightUnitChange = (unit: 'cm' | 'ft_in') => {
     if (unit === 'ft_in') {
@@ -658,9 +697,17 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="vital-lens-title"
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-3 sm:p-5 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+      className="fixed inset-0 z-[2000] flex flex-col items-center justify-start bg-black/80 p-3 sm:p-5 pt-20 sm:pt-24 pb-8 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200 cursor-pointer"
     >
-      <div className="bg-[#00172b] text-white rounded-3xl max-w-2xl w-full max-h-[94vh] flex flex-col shadow-2xl border border-purple-500/30 relative overflow-hidden animate-in zoom-in-95 duration-200 my-auto">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#00172b] text-white rounded-3xl max-w-2xl w-full max-h-[calc(100vh-6.5rem)] sm:max-h-[calc(100vh-7.5rem)] flex flex-col shadow-2xl border border-purple-500/30 relative overflow-hidden animate-in zoom-in-95 duration-200 my-auto cursor-default"
+      >
         {/* Top Glowing Purple Brand Header Bar */}
         <div className="bg-gradient-to-r from-purple-900/90 via-[#002b49] to-[#008080] p-4 sm:p-5 border-b border-purple-500/30 relative shrink-0">
           <button
@@ -1608,8 +1655,18 @@ export const VitalLensModal: React.FC<VitalLensModalProps> = ({
 
         {/* CAMERA SELECTION MODAL PROMPT: Scan by Front Camera or Rear Camera */}
         {showCameraPrompt && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md animate-in fade-in duration-200">
-            <div className="bg-[#00172b] text-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-purple-500/40 relative overflow-hidden text-center animate-in zoom-in-95 duration-200">
+          <div
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowCameraPrompt(false);
+              }
+            }}
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md animate-in fade-in duration-200 cursor-pointer"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#00172b] text-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-purple-500/40 relative overflow-hidden text-center animate-in zoom-in-95 duration-200 cursor-default"
+            >
               <div className="w-14 h-14 rounded-2xl bg-purple-500/20 text-purple-300 flex items-center justify-center mx-auto mb-4 border border-purple-400/30 shadow-inner">
                 <Camera className="w-7 h-7" />
               </div>

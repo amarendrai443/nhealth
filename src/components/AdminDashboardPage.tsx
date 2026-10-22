@@ -35,7 +35,11 @@ import {
   PhoneCall,
   CheckCircle,
   HelpCircle,
-  Filter
+  Filter,
+  HeartPulse,
+  Users,
+  ClipboardList,
+  Download
 } from 'lucide-react';
 import {
   PartnerApplication,
@@ -52,6 +56,13 @@ import {
   getStoredEnquiries,
   updateEnquiryStatus
 } from '../types/enquiry';
+import {
+  getStoredVitalScans,
+  CompactVitalScan,
+  getStoredGuestBookings,
+  updateGuestBookingStatus
+} from '../utils/patientStorage';
+import { ConfirmedBooking } from '../types/serviceBooking';
 
 interface AdminDashboardPageProps {
   partners: PartnerApplication[];
@@ -63,7 +74,7 @@ interface AdminDashboardPageProps {
   onNavigateOnboarding: () => void;
 }
 
-type AlignmentTab = 'All' | 'Pending' | 'Live' | 'Suspended' | 'HighRisk' | 'Enquiries';
+type AlignmentTab = 'All' | 'Pending' | 'Live' | 'Suspended' | 'HighRisk' | 'Enquiries' | 'VitalScans' | 'GuestBookings';
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   partners,
@@ -126,6 +137,39 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     window.addEventListener('nhealth_enquiries_updated', handleSync);
     return () => window.removeEventListener('nhealth_enquiries_updated', handleSync);
   }, []);
+
+  // 1. Vital Scans Tracking State & Admin Filters
+  const [vitalScans, setVitalScans] = useState<CompactVitalScan[]>(getStoredVitalScans);
+  const [vitalDateFilter, setVitalDateFilter] = useState<'All' | 'Today' | '7days'>('All');
+  const [vitalModeFilter, setVitalModeFilter] = useState<'All' | 'Logged-in' | 'Guest'>('All');
+  const [vitalSearchQuery, setVitalSearchQuery] = useState('');
+
+  // 2. Guest Bookings State & Admin Filters
+  const [guestBookings, setGuestBookings] = useState<ConfirmedBooking[]>(getStoredGuestBookings);
+  const [guestDateFilter, setGuestDateFilter] = useState<'All' | 'Today' | '7days'>('All');
+  const [guestServiceFilter, setGuestServiceFilter] = useState<string>('All');
+  const [guestStatusFilter, setGuestStatusFilter] = useState<string>('All');
+  const [guestSearchQuery, setGuestSearchQuery] = useState('');
+
+  // Sync vital scans & guest bookings with custom window events
+  React.useEffect(() => {
+    const handleVitalsSync = () => setVitalScans(getStoredVitalScans());
+    const handleGuestSync = () => setGuestBookings(getStoredGuestBookings());
+
+    window.addEventListener('nhealth_vital_scans_updated', handleVitalsSync);
+    window.addEventListener('nhealth_guest_bookings_updated', handleGuestSync);
+
+    return () => {
+      window.removeEventListener('nhealth_vital_scans_updated', handleVitalsSync);
+      window.removeEventListener('nhealth_guest_bookings_updated', handleGuestSync);
+    };
+  }, []);
+
+  const handleUpdateGuestStatus = (refId: string, status: ConfirmedBooking['status']) => {
+    const updated = updateGuestBookingStatus(refId, status);
+    setGuestBookings(updated);
+    showToast(`✓ Guest Order ${refId} status updated to "${status}".`);
+  };
 
   const handleSetEnquiryStatus = (id: string, newStatus: EnquiryStatus, notes?: string) => {
     if (onUpdateEnquiryStatus) {
@@ -365,6 +409,55 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       (e.requirements && e.requirements.toLowerCase().includes(q)) ||
       (e.categoryOrService && e.categoryOrService.toLowerCase().includes(q)) ||
       (e.selectedOfferings && e.selectedOfferings.some((o) => o.toLowerCase().includes(q)))
+    );
+  });
+
+  // 6. Filtered Vital Scans based on Mode, Date, and Search
+  const filteredVitalScans = vitalScans.filter((scan) => {
+    if (vitalModeFilter !== 'All' && scan.mode !== vitalModeFilter) return false;
+    if (vitalDateFilter === 'Today') {
+      const today = new Date().toISOString().substring(0, 10);
+      const isToday = scan.date === 'Today' || (scan.scanTimestamp && scan.scanTimestamp.startsWith(today));
+      if (!isToday) return false;
+    } else if (vitalDateFilter === '7days') {
+      const scanTime = new Date(scan.scanTimestamp || 0).getTime();
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      if (scanTime < sevenDaysAgo) return false;
+    }
+    const q = vitalSearchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      scan.id.toLowerCase().includes(q) ||
+      scan.userId.toLowerCase().includes(q) ||
+      scan.fullName.toLowerCase().includes(q) ||
+      scan.mobileNumber.includes(q) ||
+      scan.status.toLowerCase().includes(q) ||
+      scan.mode.toLowerCase().includes(q)
+    );
+  });
+
+  // 7. Filtered Guest Bookings based on Service, Status, Date, and Search
+  const filteredGuestBookings = guestBookings.filter((booking) => {
+    if (guestServiceFilter !== 'All' && !booking.serviceName.toLowerCase().includes(guestServiceFilter.toLowerCase())) return false;
+    if (guestStatusFilter !== 'All' && booking.status !== guestStatusFilter) return false;
+    if (guestDateFilter === 'Today') {
+      const today = new Date().toISOString().substring(0, 10);
+      const dateStr = booking.bookedAt || booking.preferredDate || '';
+      if (!dateStr.startsWith(today)) return false;
+    } else if (guestDateFilter === '7days') {
+      const time = new Date(booking.bookedAt || 0).getTime();
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      if (time < sevenDaysAgo) return false;
+    }
+    const q = guestSearchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      booking.referenceId.toLowerCase().includes(q) ||
+      booking.patientName.toLowerCase().includes(q) ||
+      booking.phone.includes(q) ||
+      booking.serviceName.toLowerCase().includes(q) ||
+      booking.city.toLowerCase().includes(q) ||
+      (booking.symptoms && booking.symptoms.toLowerCase().includes(q))
     );
   });
 
@@ -616,139 +709,195 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         {/* ------------------------------------------------------------- */}
         {/* STATS GRID: Phase 3 Alignment & Centralized Enquiries Pipeline */}
         {/* ------------------------------------------------------------- */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4">
           {/* Card 1: Pending Approvals */}
           <div
             onClick={() => setAlignmentTab('Pending')}
-            className={`p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer shadow-2xs hover:shadow-md ${
+            className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-2xs hover:shadow-md ${
               alignmentTab === 'Pending'
                 ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/30'
                 : 'bg-white border-slate-200 hover:border-amber-300'
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-amber-900 uppercase tracking-wider block">
-                Pending Approvals
+              <span className="text-[11px] font-bold text-amber-900 uppercase tracking-wider block">
+                Pending
               </span>
               <Clock className="w-4 h-4 text-amber-600" />
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-amber-700 mt-1">
+            <div className="text-2xl font-black text-amber-700 mt-1">
               {pendingCount}
             </div>
-            <span className="text-[11px] text-amber-800 font-medium mt-0.5 block">
-              Awaiting admin verification &amp; license check
+            <span className="text-[10.5px] text-amber-800 font-medium mt-0.5 block truncate">
+              Awaiting verification
             </span>
           </div>
 
           {/* Card 2: Active Live Accounts */}
           <div
             onClick={() => setAlignmentTab('Live')}
-            className={`p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer shadow-2xs hover:shadow-md ${
+            className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-2xs hover:shadow-md ${
               alignmentTab === 'Live'
                 ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-400/30'
                 : 'bg-white border-slate-200 hover:border-emerald-300'
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider block">
-                Active Live Accounts
+              <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider block">
+                Active Live
               </span>
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-emerald-700 mt-1">
+            <div className="text-2xl font-black text-emerald-700 mt-1">
               {liveCount}
             </div>
-            <span className="text-[11px] text-emerald-800 font-medium mt-0.5 block">
-              Live &amp; patient-searchable on Nhealth
+            <span className="text-[10.5px] text-emerald-800 font-medium mt-0.5 block truncate">
+              Live &amp; patient-ready
             </span>
           </div>
 
-          {/* Card 3: Inactive / Suspended Accounts (with Revoke Requests) */}
+          {/* Card 3: Inactive / Suspended Accounts */}
           <div
             onClick={() => setAlignmentTab('Suspended')}
-            className={`p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer shadow-2xs hover:shadow-md ${
+            className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-2xs hover:shadow-md ${
               alignmentTab === 'Suspended'
                 ? 'bg-rose-50 border-rose-400 ring-2 ring-rose-400/30'
                 : 'bg-white border-slate-200 hover:border-rose-300'
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-rose-900 uppercase tracking-wider block">
-                Suspended / Inactive
+              <span className="text-[11px] font-bold text-rose-900 uppercase tracking-wider block">
+                Suspended
               </span>
               <Ban className="w-4 h-4 text-rose-600" />
             </div>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-2xl sm:text-3xl font-black text-rose-700">
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <span className="text-2xl font-black text-rose-700">
                 {suspendedCount}
               </span>
               {revokeRequestsCount > 0 && (
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-200 text-rose-900 animate-pulse">
-                  {revokeRequestsCount} Revoke Request{revokeRequestsCount > 1 ? 's' : ''}
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-rose-200 text-rose-900 animate-pulse">
+                  {revokeRequestsCount} Req
                 </span>
               )}
             </div>
-            <span className="text-[11px] text-rose-800 font-medium mt-0.5 block">
-              &gt;90d Inactivity rule or admin hold
+            <span className="text-[10.5px] text-rose-800 font-medium mt-0.5 block truncate">
+              Inactivity or holds
             </span>
           </div>
 
-          {/* Card 4: High-Risk Multi-Registered Accounts (Flagged 4+ Services) */}
+          {/* Card 4: High-Risk Multi-Registered Accounts */}
           <div
             onClick={() => setAlignmentTab('HighRisk')}
-            className={`p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer shadow-2xs hover:shadow-md ${
+            className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-2xs hover:shadow-md ${
               alignmentTab === 'HighRisk'
                 ? 'bg-amber-100/60 border-amber-500 ring-2 ring-amber-500/40'
                 : 'bg-white border-slate-200 hover:border-amber-400'
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-amber-950 uppercase tracking-wider block">
-                High-Risk Flagged
+              <span className="text-[11px] font-bold text-amber-950 uppercase tracking-wider block">
+                High-Risk
               </span>
               <AlertTriangle className="w-4 h-4 text-amber-600" />
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-amber-900 mt-1">
+            <div className="text-2xl font-black text-amber-900 mt-1">
               {highRiskCount}
             </div>
-            <span className="text-[11px] text-amber-900 font-medium mt-0.5 block">
-              Phone registered across 4+ service verticals
+            <span className="text-[10.5px] text-amber-900 font-medium mt-0.5 block truncate">
+              Phone in 4+ verticals
             </span>
           </div>
 
-          {/* Card 5: Review Enquiries (Corporate & General Pipeline) */}
+          {/* Card 5: Review Enquiries */}
           <div
             onClick={() => setAlignmentTab('Enquiries')}
-            className={`p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer shadow-2xs hover:shadow-md ${
+            className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-2xs hover:shadow-md ${
               alignmentTab === 'Enquiries'
                 ? 'bg-teal-50 border-teal-500 ring-2 ring-teal-500/30'
                 : 'bg-white border-slate-200 hover:border-teal-400'
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-teal-950 uppercase tracking-wider block">
-                Review Enquiries
+              <span className="text-[11px] font-bold text-teal-950 uppercase tracking-wider block">
+                Enquiries
               </span>
               <FileText className="w-4 h-4 text-teal-600" />
             </div>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-2xl sm:text-3xl font-black text-teal-800">
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <span className="text-2xl font-black text-teal-800">
                 {localEnquiries.length}
               </span>
               {pendingEnquiriesCount > 0 && (
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-950 animate-pulse">
-                  {pendingEnquiriesCount} Pending
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-200 text-amber-950 animate-pulse">
+                  {pendingEnquiriesCount} New
                 </span>
               )}
             </div>
-            <span className="text-[11px] text-teal-900 font-medium mt-0.5 block">
-              Corporate &amp; collaboration leads
+            <span className="text-[10.5px] text-teal-900 font-medium mt-0.5 block truncate">
+              Corporate &amp; leads
+            </span>
+          </div>
+
+          {/* Card 6: Live Metric Counter - Total Vital Scans */}
+          <div
+            onClick={() => setAlignmentTab('VitalScans')}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-2xs hover:shadow-md ${
+              alignmentTab === 'VitalScans'
+                ? 'bg-purple-50 border-purple-500 ring-2 ring-purple-500/30'
+                : 'bg-white border-slate-200 hover:border-purple-300'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-purple-950 uppercase tracking-wider block">
+                Total Vital Scans
+              </span>
+              <HeartPulse className="w-4 h-4 text-purple-600" />
+            </div>
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <span className="text-2xl font-black text-purple-800">
+                {vitalScans.length}
+              </span>
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-purple-200 text-purple-900">
+                Live
+              </span>
+            </div>
+            <span className="text-[10.5px] text-purple-800 font-medium mt-0.5 block truncate">
+              {vitalScans.filter((s) => s.mode === 'Logged-in').length} User · {vitalScans.filter((s) => s.mode === 'Guest').length} Guest
+            </span>
+          </div>
+
+          {/* Card 7: Dedicated Guest Bookings */}
+          <div
+            onClick={() => setAlignmentTab('GuestBookings')}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-2xs hover:shadow-md ${
+              alignmentTab === 'GuestBookings'
+                ? 'bg-cyan-50 border-cyan-500 ring-2 ring-cyan-500/30'
+                : 'bg-white border-slate-200 hover:border-cyan-300'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-cyan-950 uppercase tracking-wider block">
+                Guest Bookings
+              </span>
+              <ClipboardList className="w-4 h-4 text-cyan-600" />
+            </div>
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <span className="text-2xl font-black text-cyan-800">
+                {guestBookings.length}
+              </span>
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-cyan-200 text-cyan-900">
+                Hero
+              </span>
+            </div>
+            <span className="text-[10.5px] text-cyan-800 font-medium mt-0.5 block truncate">
+              {guestBookings.filter((b) => b.status === 'Confirmed').length} Confirmed orders
             </span>
           </div>
         </div>
 
         {/* ------------------------------------------------------------- */}
-        {/* ALIGNMENT TABS & SEARCH BAR (Phase 3 & Review Enquiries) */}
+        {/* ALIGNMENT TABS & SEARCH BAR */}
         {/* ------------------------------------------------------------- */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3.5">
           {/* Primary Queue Tabs */}
@@ -814,7 +963,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 </span>
               </button>
 
-              {/* Tab 3: Inactive / Suspended Accounts (with Revoke Requests) */}
+              {/* Tab 3: Inactive / Suspended Accounts */}
               <button
                 type="button"
                 onClick={() => setAlignmentTab('Suspended')}
@@ -838,7 +987,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 )}
               </button>
 
-              {/* Tab 4: High-Risk Multi-Registered Accounts (Flagged 4+ Services) */}
+              {/* Tab 4: High-Risk Multi-Registered Accounts */}
               <button
                 type="button"
                 onClick={() => setAlignmentTab('HighRisk')}
@@ -849,7 +998,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 }`}
               >
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
-                <span>High-Risk (4+ Services)</span>
+                <span>High-Risk</span>
                 <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                   alignmentTab === 'HighRisk' ? 'bg-white/20 text-white' : 'bg-amber-300 text-amber-950 font-black'
                 }`}>
@@ -857,7 +1006,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 </span>
               </button>
 
-              {/* Tab 5: Review Enquiries (Dedicated Tab) */}
+              {/* Tab 5: Review Enquiries */}
               <button
                 type="button"
                 onClick={() => setAlignmentTab('Enquiries')}
@@ -884,11 +1033,65 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   </span>
                 )}
               </button>
+
+              {/* Tab 6: Total Vital Scans */}
+              <button
+                type="button"
+                onClick={() => setAlignmentTab('VitalScans')}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+                  alignmentTab === 'VitalScans'
+                    ? 'bg-purple-700 text-white shadow-xs'
+                    : 'bg-purple-50 hover:bg-purple-100 text-purple-950 border border-purple-200'
+                }`}
+              >
+                <HeartPulse className="w-3.5 h-3.5" />
+                <span>Total Vital Scans</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    alignmentTab === 'VitalScans'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-purple-200 text-purple-900'
+                  }`}
+                >
+                  {vitalScans.length}
+                </span>
+              </button>
+
+              {/* Tab 7: Guest Bookings */}
+              <button
+                type="button"
+                onClick={() => setAlignmentTab('GuestBookings')}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+                  alignmentTab === 'GuestBookings'
+                    ? 'bg-cyan-700 text-white shadow-xs'
+                    : 'bg-cyan-50 hover:bg-cyan-100 text-cyan-950 border border-cyan-200'
+                }`}
+              >
+                <ClipboardList className="w-3.5 h-3.5" />
+                <span>Guest Bookings</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    alignmentTab === 'GuestBookings'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-cyan-200 text-cyan-900'
+                  }`}
+                >
+                  {guestBookings.length}
+                </span>
+              </button>
             </div>
 
             {/* Quick Count Badge */}
             <div className="text-xs text-slate-500 font-medium">
-              {alignmentTab === 'Enquiries' ? (
+              {alignmentTab === 'VitalScans' ? (
+                <span>
+                  Showing <strong>{filteredVitalScans.length}</strong> of {vitalScans.length} vital scans
+                </span>
+              ) : alignmentTab === 'GuestBookings' ? (
+                <span>
+                  Showing <strong>{filteredGuestBookings.length}</strong> of {guestBookings.length} guest bookings
+                </span>
+              ) : alignmentTab === 'Enquiries' ? (
                 <span>
                   Showing <strong>{filteredEnquiries.length}</strong> of {localEnquiries.length} enquiries
                 </span>
@@ -901,7 +1104,174 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           </div>
 
           {/* Search & Filter Row */}
-          {alignmentTab === 'Enquiries' ? (
+          {alignmentTab === 'VitalScans' ? (
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-3">
+              {/* Vital Scans Search Input */}
+              <div className="relative w-full lg:w-96">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                <input
+                  type="text"
+                  placeholder="Search by Scan ID, User/Guest ID, Patient name, Phone, Status..."
+                  value={vitalSearchQuery}
+                  onChange={(e) => setVitalSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-slate-50/50"
+                />
+                {vitalSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setVitalSearchQuery('')}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Filters: Date & Mode */}
+              <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto text-xs">
+                {/* Date Filter */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 text-xs font-bold mr-1">Date:</span>
+                  {(['All', 'Today', '7days'] as const).map((df) => {
+                    const label = df === 'All' ? 'All Time' : df === 'Today' ? 'Today' : 'Last 7 Days';
+                    const isSel = vitalDateFilter === df;
+                    return (
+                      <button
+                        key={df}
+                        type="button"
+                        onClick={() => setVitalDateFilter(df)}
+                        className={`px-2.5 py-1 rounded-lg font-bold whitespace-nowrap transition-colors cursor-pointer text-xs ${
+                          isSel
+                            ? 'bg-purple-700 text-white shadow-2xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Mode Filter */}
+                <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+                  <span className="text-slate-400 text-xs font-bold mr-1">Mode:</span>
+                  {(['All', 'Logged-in', 'Guest'] as const).map((mf) => {
+                    const isSel = vitalModeFilter === mf;
+                    const count =
+                      mf === 'All'
+                        ? vitalScans.length
+                        : vitalScans.filter((s) => s.mode === mf).length;
+                    return (
+                      <button
+                        key={mf}
+                        type="button"
+                        onClick={() => setVitalModeFilter(mf)}
+                        className={`px-2.5 py-1 rounded-lg font-bold whitespace-nowrap transition-colors cursor-pointer text-xs flex items-center gap-1 ${
+                          isSel
+                            ? 'bg-purple-700 text-white shadow-2xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                        }`}
+                      >
+                        <span>{mf === 'All' ? 'All Scans' : mf}</span>
+                        <span className={`text-[10px] px-1 rounded-full ${isSel ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : alignmentTab === 'GuestBookings' ? (
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-3">
+              {/* Guest Booking Search Input */}
+              <div className="relative w-full lg:w-96">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                <input
+                  type="text"
+                  placeholder="Search by Reference ID, Guest name, Phone, Service, Doctor..."
+                  value={guestSearchQuery}
+                  onChange={(e) => setGuestSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-slate-50/50"
+                />
+                {guestSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setGuestSearchQuery('')}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Filters: Date, Service, Status */}
+              <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto text-xs">
+                {/* Date Filter */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 text-xs font-bold mr-1">Date:</span>
+                  {(['All', 'Today', '7days'] as const).map((df) => {
+                    const label = df === 'All' ? 'All Time' : df === 'Today' ? 'Today' : 'Last 7 Days';
+                    const isSel = guestDateFilter === df;
+                    return (
+                      <button
+                        key={df}
+                        type="button"
+                        onClick={() => setGuestDateFilter(df)}
+                        className={`px-2.5 py-1 rounded-lg font-bold whitespace-nowrap transition-colors cursor-pointer text-xs ${
+                          isSel
+                            ? 'bg-cyan-700 text-white shadow-2xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Service Type Selector */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 text-xs font-bold mr-1">Service:</span>
+                  <select
+                    value={guestServiceFilter}
+                    onChange={(e) => setGuestServiceFilter(e.target.value)}
+                    className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-cyan-500 text-slate-700 shadow-2xs"
+                  >
+                    <option value="All">All Services</option>
+                    <option value="CareRide">CareRide / Transport</option>
+                    <option value="Diagnostics">Diagnostics &amp; Lab Tests</option>
+                    <option value="Doctor">Doctor Home Visits</option>
+                    <option value="Nursing">Nursing &amp; Care Assist</option>
+                    <option value="Pharmacy">Pharmacy &amp; Medicines</option>
+                    <option value="Ambulance">Ambulance &amp; Emergency</option>
+                  </select>
+                </div>
+
+                {/* Status Filter */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 text-xs font-bold mr-1">Status:</span>
+                  {(['All', 'Confirmed', 'Clinician Dispatched', 'Sample Collected', 'Report Ready'] as const).map((st) => {
+                    const isSel = guestStatusFilter === st;
+                    return (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => setGuestStatusFilter(st)}
+                        className={`px-2 py-1 rounded-lg font-bold whitespace-nowrap transition-colors cursor-pointer text-xs ${
+                          isSel
+                            ? 'bg-cyan-700 text-white shadow-2xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : alignmentTab === 'Enquiries' ? (
             <div className="flex flex-col lg:flex-row items-center justify-between gap-3">
               {/* Enquiry Search Input */}
               <div className="relative w-full lg:w-96">
@@ -1002,9 +1372,347 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         </div>
 
         {/* ------------------------------------------------------------- */}
-        {/* REVIEW ENQUIRIES PIPELINE OR PARTNERS APPLICATIONS ROSTER */}
+        {/* TAB PANELS: VITAL SCANS, GUEST BOOKINGS, ENQUIRIES, OR PARTNERS */}
         {/* ------------------------------------------------------------- */}
-        {alignmentTab === 'Enquiries' ? (
+        {alignmentTab === 'VitalScans' ? (
+          <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden">
+            {/* Table Header Summary */}
+            <div className="p-4 sm:p-5 border-b border-slate-200 bg-purple-50/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-purple-950 flex items-center gap-2">
+                  <HeartPulse className="w-5 h-5 text-purple-600" />
+                  <span>VitalLens Optical Biometrics Registry</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Live audit trail of non-invasive facial PPG vital scans across registered patients and guest sessions.
+                </p>
+              </div>
+
+              {/* Quick Summary Badges */}
+              <div className="flex items-center gap-2 text-xs">
+                <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-800 font-bold border border-purple-200">
+                  {vitalScans.filter((s) => s.mode === 'Logged-in').length} Logged-in
+                </span>
+                <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 font-bold border border-slate-200">
+                  {vitalScans.filter((s) => s.mode === 'Guest').length} Guest Scans
+                </span>
+              </div>
+            </div>
+
+            {/* Table Content or Empty State */}
+            {filteredVitalScans.length === 0 ? (
+              <div className="p-12 text-center">
+                <HeartPulse className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <h4 className="text-base font-bold text-slate-700">No vital scan records found</h4>
+                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                  No scan logs match the current filter selection ({vitalModeFilter} mode, {vitalDateFilter} date). Try resetting filters.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVitalDateFilter('All');
+                    setVitalModeFilter('All');
+                    setVitalSearchQuery('');
+                  }}
+                  className="mt-4 px-4 py-2 rounded-xl bg-purple-700 text-white text-xs font-bold hover:bg-purple-800 transition-colors cursor-pointer"
+                >
+                  Reset Vital Scan Filters
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50/90 text-slate-500 font-bold border-b border-slate-200 text-[11px] uppercase tracking-wider">
+                      <th className="py-3 px-4">Scan Reference &amp; Timestamp</th>
+                      <th className="py-3 px-4">User / Guest ID</th>
+                      <th className="py-3 px-4">Patient Profile</th>
+                      <th className="py-3 px-4">Session Mode</th>
+                      <th className="py-3 px-4">Bio-Markers (PPG Results)</th>
+                      <th className="py-3 px-4 text-right">Scan Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {filteredVitalScans.map((scan) => {
+                      const isGuest = scan.mode === 'Guest';
+
+                      const statusColor =
+                        scan.status.toLowerCase().includes('optimal') || scan.status.toLowerCase().includes('normal')
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : scan.status.toLowerCase().includes('elevated') || scan.status.toLowerCase().includes('mild')
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-purple-50 text-purple-700 border-purple-200';
+
+                      const formattedDate =
+                        scan.date && scan.time
+                          ? `${scan.date} at ${scan.time}`
+                          : new Date(scan.scanTimestamp || Date.now()).toLocaleDateString('en-IN');
+
+                      return (
+                        <tr key={scan.id} className="hover:bg-slate-50/80 transition-colors">
+                          {/* 1. Reference & Timestamp */}
+                          <td className="py-3.5 px-4 align-top">
+                            <span className="font-mono font-bold text-slate-900 block text-xs">
+                              {scan.id}
+                            </span>
+                            <span className="text-[11px] text-slate-400 mt-0.5 block">
+                              {formattedDate}
+                            </span>
+                          </td>
+
+                          {/* 2. User / Guest ID */}
+                          <td className="py-3.5 px-4 align-top">
+                            <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-200 inline-block">
+                              {scan.userId}
+                            </span>
+                          </td>
+
+                          {/* 3. Patient Profile */}
+                          <td className="py-3.5 px-4 align-top">
+                            <div className="font-bold text-slate-800 text-xs">
+                              {scan.fullName}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                              {scan.mobileNumber}
+                            </div>
+                            {(scan.age || scan.gender) && (
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                {[
+                                  scan.age ? `${scan.age} yrs` : null,
+                                  scan.gender,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' · ')}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* 4. Session Mode */}
+                          <td className="py-3.5 px-4 align-top">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold border ${
+                                isGuest
+                                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              }`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  isGuest ? 'bg-purple-500' : 'bg-emerald-500'
+                                }`}
+                              />
+                              <span>{scan.mode}</span>
+                            </span>
+                          </td>
+
+                          {/* 5. Bio-Markers Summary */}
+                          <td className="py-3.5 px-4 align-top">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-mono text-[11px] font-bold" title="Heart Rate">
+                                ❤️ {scan.heartRate} bpm
+                              </span>
+                              <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 font-mono text-[11px] font-bold" title="Blood Oxygen">
+                                💨 SpO2 {scan.oxygenSaturation}%
+                              </span>
+                              <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono text-[11px]" title="Heart Rate Variability">
+                                HRV {scan.sdnn} ms
+                              </span>
+                              <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-mono text-[11px]" title="Stress Index">
+                                {scan.stressLevel}
+                              </span>
+                              {scan.bloodPressureSystolic && scan.bloodPressureDiastolic && (
+                                <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono text-[11px]" title="Estimated BP">
+                                  BP {scan.bloodPressureSystolic}/{scan.bloodPressureDiastolic}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* 6. Scan Status */}
+                          <td className="py-3.5 px-4 align-top text-right">
+                            <span
+                              className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold border ${statusColor}`}
+                            >
+                              {scan.status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : alignmentTab === 'GuestBookings' ? (
+          <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden">
+            {/* Table Header Summary */}
+            <div className="p-4 sm:p-5 border-b border-slate-200 bg-cyan-50/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-cyan-950 flex items-center gap-2">
+                  <ClipboardList className="w-5 h-5 text-cyan-600" />
+                  <span>Hero Page Guest Service Bookings</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Direct healthcare orders placed by non-logged in visitors through the public hero service cards.
+                </p>
+              </div>
+
+              {/* Status Breakdown Badges */}
+              <div className="flex items-center gap-2 text-xs">
+                <span className="px-3 py-1 rounded-full bg-cyan-100 text-cyan-800 font-bold border border-cyan-200">
+                  {guestBookings.filter((b) => b.status === 'Confirmed').length} Confirmed
+                </span>
+                <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-200">
+                  {guestBookings.filter((b) => b.status === 'Clinician Dispatched').length} Dispatched
+                </span>
+              </div>
+            </div>
+
+            {/* Table Content or Empty State */}
+            {filteredGuestBookings.length === 0 ? (
+              <div className="p-12 text-center">
+                <ClipboardList className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <h4 className="text-base font-bold text-slate-700">No guest bookings found</h4>
+                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                  No guest bookings match the current filter selection ({guestServiceFilter} service, {guestStatusFilter} status).
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGuestDateFilter('All');
+                    setGuestServiceFilter('All');
+                    setGuestStatusFilter('All');
+                    setGuestSearchQuery('');
+                  }}
+                  className="mt-4 px-4 py-2 rounded-xl bg-cyan-700 text-white text-xs font-bold hover:bg-cyan-800 transition-colors cursor-pointer"
+                >
+                  Reset Guest Booking Filters
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50/90 text-slate-500 font-bold border-b border-slate-200 text-[11px] uppercase tracking-wider">
+                      <th className="py-3 px-4">Booking Ref &amp; Date</th>
+                      <th className="py-3 px-4">Guest Patient</th>
+                      <th className="py-3 px-4">Service &amp; Location</th>
+                      <th className="py-3 px-4">Slot &amp; Symptoms</th>
+                      <th className="py-3 px-4 text-right">Status &amp; Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {filteredGuestBookings.map((booking) => {
+                      const formattedTime = new Date(
+                        booking.bookedAt || booking.preferredDate || Date.now()
+                      ).toLocaleString('en-IN', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      });
+
+                      const statusBadge =
+                        booking.status === 'Confirmed'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : booking.status === 'Clinician Dispatched'
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : booking.status === 'Sample Collected'
+                          ? 'bg-blue-50 text-blue-700 border-blue-200'
+                          : 'bg-purple-50 text-purple-700 border-purple-200';
+
+                      return (
+                        <tr key={booking.referenceId} className="hover:bg-slate-50/80 transition-colors">
+                          {/* 1. Reference & Date */}
+                          <td className="py-3.5 px-4 align-top">
+                            <span className="font-mono font-bold text-cyan-900 block text-xs">
+                              {booking.referenceId}
+                            </span>
+                            <span className="text-[11px] text-slate-400 mt-0.5 block">
+                              {formattedTime}
+                            </span>
+                          </td>
+
+                          {/* 2. Guest Patient */}
+                          <td className="py-3.5 px-4 align-top">
+                            <div className="font-bold text-slate-800 text-xs">
+                              {booking.patientName}
+                            </div>
+                            <div className="text-[11px] text-slate-600 font-mono mt-0.5">
+                              <a href={`tel:${booking.phone}`} className="hover:text-cyan-700 hover:underline">
+                                {booking.phone}
+                              </a>
+                            </div>
+                            {(booking.age || booking.gender) && (
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                {[
+                                  booking.age ? `${booking.age} yrs` : null,
+                                  booking.gender,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' · ')}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* 3. Service & Location */}
+                          <td className="py-3.5 px-4 align-top">
+                            <span className="px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-800 border border-cyan-200 font-semibold text-[11px] inline-block mb-1">
+                              {booking.serviceName}
+                            </span>
+                            <div className="text-xs text-slate-700 flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span className="truncate max-w-[180px]">{booking.address || `${booking.city}, ${booking.state}`}</span>
+                            </div>
+                          </td>
+
+                          {/* 4. Slot & Symptoms */}
+                          <td className="py-3.5 px-4 align-top">
+                            <div className="text-xs font-semibold text-slate-800 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              <span>{booking.preferredDate} · {booking.preferredTimeSlot}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-1 max-w-xs line-clamp-2">
+                              {booking.symptoms || 'Standard appointment requested'}
+                            </p>
+                          </td>
+
+                          {/* 5. Status & Actions */}
+                          <td className="py-3.5 px-4 align-top text-right">
+                            <div className="flex flex-col items-end gap-1.5">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${statusBadge}`}>
+                                {booking.status}
+                              </span>
+
+                              {/* Status update select */}
+                              <select
+                                value={booking.status}
+                                onChange={(e) =>
+                                  handleUpdateGuestStatus(
+                                    booking.referenceId,
+                                    e.target.value as ConfirmedBooking['status']
+                                  )
+                                }
+                                className="text-[10.5px] font-semibold px-2 py-1 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-cyan-500 text-slate-700 shadow-2xs cursor-pointer"
+                              >
+                                <option value="Confirmed">Mark Confirmed</option>
+                                <option value="Clinician Dispatched">Mark Dispatched</option>
+                                <option value="Sample Collected">Mark Collected</option>
+                                <option value="Report Ready">Mark Report Ready</option>
+                              </select>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : alignmentTab === 'Enquiries' ? (
           <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden">
             {/* Table Header Summary */}
             <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
